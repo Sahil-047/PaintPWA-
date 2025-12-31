@@ -1,5 +1,6 @@
 import Product from '../models/Product.js';
 import Brand from '../models/Brand.js';
+import ProductType from '../models/ProductType.js';
 
 // @desc    Get all brands
 // @route   GET /api/inventory/brands
@@ -178,7 +179,7 @@ export const createBrand = async (req, res) => {
 // @access  Private
 export const createProduct = async (req, res) => {
   try {
-    const { name, brand, price, stock, unit, description } = req.body;
+    const { name, brand, price, stock, unit, type, description } = req.body;
 
     // Validation
     if (!name || name.trim() === '') {
@@ -192,6 +193,13 @@ export const createProduct = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Brand is required',
+      });
+    }
+
+    if (!type || type.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Product type is required',
       });
     }
 
@@ -237,6 +245,7 @@ export const createProduct = async (req, res) => {
       price,
       stock: stock || 0,
       unit: unit || 'L',
+      type: type.trim(),
       description: description || '',
     });
 
@@ -252,6 +261,139 @@ export const createProduct = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error creating product',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get product types by brand
+// @route   GET /api/inventory/types/:brandId
+// @access  Private
+export const getProductTypesByBrand = async (req, res) => {
+  try {
+    const { brandId } = req.params;
+
+    // Get types from ProductType model
+    const types = await ProductType.find({
+      brand: brandId,
+      isActive: true,
+    }).sort({ name: 1 });
+
+    // Also get distinct types from products (for backward compatibility)
+    const productTypes = await Product.distinct('type', {
+      brand: brandId,
+      isActive: true,
+    });
+
+    // Merge: use ProductType if exists, otherwise create entry from product types
+    const typeMap = new Map();
+    types.forEach(type => {
+      typeMap.set(type.name, { name: type.name, icon: type.icon || '' });
+    });
+    
+    productTypes.forEach(typeName => {
+      if (!typeMap.has(typeName)) {
+        typeMap.set(typeName, { name: typeName, icon: '' });
+      }
+    });
+
+    const result = Array.from(typeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Get product types error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching product types',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Create or update product type
+// @route   POST /api/inventory/types
+// @access  Private
+export const createOrUpdateProductType = async (req, res) => {
+  try {
+    const { name, brand, icon } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Product type name is required',
+      });
+    }
+
+    if (!brand) {
+      return res.status(400).json({
+        success: false,
+        message: 'Brand is required',
+      });
+    }
+
+    // Check if brand exists
+    const brandExists = await Brand.findById(brand);
+    if (!brandExists) {
+      return res.status(404).json({
+        success: false,
+        message: 'Brand not found',
+      });
+    }
+
+    // Create or update product type
+    const productType = await ProductType.findOneAndUpdate(
+      { name: name.trim(), brand: brand },
+      { 
+        name: name.trim(), 
+        brand: brand,
+        icon: icon || '',
+        isActive: true 
+      },
+      { upsert: true, new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Product type saved successfully',
+      data: productType,
+    });
+  } catch (error) {
+    console.error('Create/update product type error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error saving product type',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get products by brand and type
+// @route   GET /api/inventory/products/:brandId/:type
+// @access  Private
+export const getProductsByBrandAndType = async (req, res) => {
+  try {
+    const { brandId, type } = req.params;
+
+    const products = await Product.find({
+      brand: brandId,
+      type: decodeURIComponent(type),
+      isActive: true,
+    })
+      .populate('brand', 'name image')
+      .sort({ name: 1 });
+
+    res.status(200).json({
+      success: true,
+      data: products,
+    });
+  } catch (error) {
+    console.error('Get products by type error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching products',
       error: error.message,
     });
   }

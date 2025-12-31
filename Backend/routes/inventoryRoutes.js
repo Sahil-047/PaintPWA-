@@ -5,7 +5,10 @@ import {
   updateStock,
   getAllProducts,
   createBrand,
-  createProduct
+  createProduct,
+  getProductTypesByBrand,
+  getProductsByBrandAndType,
+  createOrUpdateProductType
 } from '../controllers/inventoryController.js';
 import { protect } from '../middlewares/authMiddleware.js';
 
@@ -18,6 +21,9 @@ router.get('/brands', getBrands);
 router.post('/brands', createBrand);
 router.get('/products', getAllProducts);
 router.post('/products', createProduct);
+router.get('/types/:brandId', getProductTypesByBrand);
+router.post('/types', createOrUpdateProductType);
+router.get('/products/:brandId/:type', getProductsByBrandAndType);
 router.get('/products/:brandId', getProductsByBrand);
 router.patch('/products/:productId/stock', updateStock);
 

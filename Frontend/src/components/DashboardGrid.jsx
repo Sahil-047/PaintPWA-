@@ -94,33 +94,6 @@ const DashboardGrid = () => {
       ),
     },
     {
-      title: 'Employees',
-      path: '/employees',
-      icon: (
-        <svg viewBox="0 0 120 120" className="w-full h-full">
-          {/* Person 1 */}
-          <circle cx="35" cy="35" r="12" fill="#3B82F6" />
-          <path d="M20 65 Q20 55 35 55 Q50 55 50 65 L50 75 L20 75 Z" fill="#3B82F6" />
-          
-          {/* Person 2 */}
-          <circle cx="60" cy="30" r="10" fill="#10B981" />
-          <path d="M48 60 Q48 52 60 52 Q72 52 72 60 L72 70 L48 70 Z" fill="#10B981" />
-          
-          {/* Person 3 */}
-          <circle cx="85" cy="35" r="12" fill="#F59E0B" />
-          <path d="M70 65 Q70 55 85 55 Q100 55 100 65 L100 75 L70 75 Z" fill="#F59E0B" />
-          
-          {/* Connection Lines */}
-          <line x1="47" y1="40" x2="70" y2="40" stroke="#D1D5DB" strokeWidth="2" strokeDasharray="3,3" />
-          <line x1="60" y1="50" x2="60" y2="60" stroke="#D1D5DB" strokeWidth="2" strokeDasharray="3,3" />
-          
-          {/* Team Badge */}
-          <circle cx="60" cy="85" r="15" fill="#6366F1" />
-          <text x="60" y="90" fontSize="12" fill="white" textAnchor="middle" fontWeight="bold">TEAM</text>
-        </svg>
-      ),
-    },
-    {
       title: 'Settings',
       path: '/settings',
       icon: (
@@ -179,9 +152,7 @@ const DashboardGrid = () => {
         {modules.map((module, index) => (
           <Card
             key={module.path}
-            className={`bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group ${
-              index === 3 ? 'lg:col-start-1' : ''
-            }`}
+            className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
             onClick={() => navigate(module.path)}
           >
             <CardContent className="p-8 flex flex-col items-center text-center">

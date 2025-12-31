@@ -28,6 +28,11 @@ const productSchema = new mongoose.Schema(
       required: [true, 'Please provide a unit'],
       default: 'L',
     },
+    type: {
+      type: String,
+      required: [true, 'Please provide a product type'],
+      trim: true,
+    },
     description: {
       type: String,
       default: '',
@@ -45,6 +50,8 @@ const productSchema = new mongoose.Schema(
 // Index for faster searches
 productSchema.index({ name: 'text', brand: 'text' });
 productSchema.index({ brand: 1 });
+productSchema.index({ type: 1 });
+productSchema.index({ brand: 1, type: 1 });
 
 const Product = mongoose.model('Product', productSchema);
 

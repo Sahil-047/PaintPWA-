@@ -79,6 +79,43 @@ const inventoryService = {
     );
     return response.data;
   },
+
+  async getProductTypesByBrand(brandId) {
+    const token = authService.getToken();
+    const response = await axios.get(`${API_URL}/inventory/types/${brandId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  },
+
+  async getProductsByBrandAndType(brandId, type) {
+    const token = authService.getToken();
+    const response = await axios.get(
+      `${API_URL}/inventory/products/${brandId}/${encodeURIComponent(type)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async createOrUpdateProductType(name, brand, icon = '') {
+    const token = authService.getToken();
+    const response = await axios.post(
+      `${API_URL}/inventory/types`,
+      { name, brand, icon },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
 };
 
 export default inventoryService;

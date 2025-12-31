@@ -224,9 +224,9 @@ const Billing = () => {
                                   <TableCell>
                                     <Badge 
                                       variant={product.stock < 30 ? "destructive" : "secondary"}
-                                      className="text-xs"
+                                      className="text-xs text-slate-900"
                                     >
-                                      {product.stock} {product.unit}
+                                      {product.stock} 
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-right">

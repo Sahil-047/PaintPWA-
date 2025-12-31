@@ -36,11 +36,15 @@ const Inventory = () => {
   const user = authService.getCurrentUser();
   const [brands, setBrands] = useState([]);
   const [selectedBrand, setSelectedBrand] = useState(null);
+  const [productTypes, setProductTypes] = useState([]);
+  const [selectedType, setSelectedType] = useState(null);
   const [products, setProducts] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [typesLoading, setTypesLoading] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const brandsFetched = useRef(false);
+  const typesFetchedRef = useRef(null);
   const productsFetchedRef = useRef(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('brand');
@@ -48,6 +52,8 @@ const Inventory = () => {
   const [productFormData, setProductFormData] = useState({
     name: '',
     brand: '',
+    type: '',
+    typeIcon: '',
     price: '',
     stock: '',
     unit: 'L',
@@ -78,23 +84,41 @@ const Inventory = () => {
     }
   }, []); // Empty deps - only create once
 
-  const fetchProductsByBrand = useCallback(async (brandId) => {
-    if (!brandId || productsFetchedRef.current === brandId) return; // Prevent duplicate calls
-    setProductsLoading(true);
-    productsFetchedRef.current = brandId;
+  const fetchProductTypes = useCallback(async (brandId) => {
+    if (!brandId || typesFetchedRef.current === brandId) return;
+    setTypesLoading(true);
+    typesFetchedRef.current = brandId;
     try {
-      const response = await inventoryService.getProductsByBrand(brandId);
+      const response = await inventoryService.getProductTypesByBrand(brandId);
+      if (response.success) {
+        setProductTypes(response.data);
+      }
+    } catch (error) {
+      toast.error('Failed to load product types');
+      console.error('Error fetching product types:', error);
+      typesFetchedRef.current = null;
+    } finally {
+      setTypesLoading(false);
+    }
+  }, []);
+
+  const fetchProductsByBrandAndType = useCallback(async (brandId, type) => {
+    if (!brandId || !type || productsFetchedRef.current === `${brandId}-${type}`) return;
+    setProductsLoading(true);
+    productsFetchedRef.current = `${brandId}-${type}`;
+    try {
+      const response = await inventoryService.getProductsByBrandAndType(brandId, type);
       if (response.success) {
         setProducts(response.data);
       }
     } catch (error) {
       toast.error('Failed to load products');
       console.error('Error fetching products:', error);
-      productsFetchedRef.current = null; // Reset on error
+      productsFetchedRef.current = null;
     } finally {
       setProductsLoading(false);
     }
-  }, []); // Empty deps - only create once
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -106,15 +130,35 @@ const Inventory = () => {
 
   useEffect(() => {
     if (selectedBrand?._id) {
-      fetchProductsByBrand(selectedBrand._id);
+      fetchProductTypes(selectedBrand._id);
+      setSelectedType(null);
+      setProducts([]);
     } else {
-      productsFetchedRef.current = null; // Reset when brand is deselected
+      typesFetchedRef.current = null;
+      productsFetchedRef.current = null;
+      setProductTypes([]);
+      setSelectedType(null);
       setProducts([]);
     }
-  }, [selectedBrand?._id, fetchProductsByBrand]);
+  }, [selectedBrand?._id, fetchProductTypes]);
+
+  useEffect(() => {
+    if (selectedBrand?._id && selectedType) {
+      fetchProductsByBrandAndType(selectedBrand._id, selectedType);
+    } else {
+      productsFetchedRef.current = null;
+      setProducts([]);
+    }
+  }, [selectedBrand?._id, selectedType, fetchProductsByBrandAndType]);
 
   const handleBrandSelect = (brand) => {
     setSelectedBrand(brand);
+    setSelectedType(null);
+    setSearchQuery('');
+  };
+
+  const handleTypeSelect = (type) => {
+    setSelectedType(type);
     setSearchQuery('');
   };
 
@@ -184,6 +228,10 @@ const Inventory = () => {
       toast.error('Please select a brand');
       return;
     }
+    if (!productFormData.type || !productFormData.type.trim()) {
+      toast.error('Product type is required');
+      return;
+    }
     if (!productFormData.price || productFormData.price <= 0) {
       toast.error('Valid price is required');
       return;
@@ -195,9 +243,20 @@ const Inventory = () => {
 
     setSubmitting(true);
     try {
+      // First, create or update the product type with icon
+      if (productFormData.typeIcon) {
+        await inventoryService.createOrUpdateProductType(
+          productFormData.type.trim(),
+          productFormData.brand,
+          productFormData.typeIcon
+        );
+      }
+
+      // Then create the product
       const response = await inventoryService.createProduct({
         name: productFormData.name,
         brand: productFormData.brand,
+        type: productFormData.type.trim(),
         price: parseFloat(productFormData.price),
         stock: parseInt(productFormData.stock) || 0,
         unit: productFormData.unit,
@@ -208,16 +267,22 @@ const Inventory = () => {
         setProductFormData({
           name: '',
           brand: '',
+          type: '',
+          typeIcon: '',
           price: '',
           stock: '',
           unit: 'L',
           description: '',
         });
         setIsAddModalOpen(false);
-        // Refresh products if viewing a brand
+        // Refresh types and products if viewing a brand
         if (selectedBrand?._id) {
+          typesFetchedRef.current = null;
           productsFetchedRef.current = null;
-          fetchProductsByBrand(selectedBrand._id);
+          fetchProductTypes(selectedBrand._id);
+          if (selectedType) {
+            fetchProductsByBrandAndType(selectedBrand._id, selectedType);
+          }
         }
       }
     } catch (error) {
@@ -294,20 +359,104 @@ const Inventory = () => {
               </div>
             )}
           </div>
+        ) : !selectedType ? (
+          // Product Types View
+          <div className="w-full px-8 py-4">
+            <div className="mb-8 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">{selectedBrand.name} - Product Types</h2>
+                <p className="text-slate-600">Select a product type to manage inventory</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    setActiveTab('product');
+                    setProductFormData(prev => ({ ...prev, brand: selectedBrand._id }));
+                    setIsAddModalOpen(true);
+                  }}
+                  className="gap-2 bg-slate-900 hover:bg-blue-600 text-white hover:text-white transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedBrand(null);
+                    setSelectedType(null);
+                  }}
+                  className="gap-2 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Brands
+                </Button>
+              </div>
+            </div>
+            {typesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+              </div>
+            ) : productTypes.length === 0 ? (
+              <div className="text-center py-12 text-slate-500">
+                <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">No product types found</p>
+                <p className="text-sm mt-2">Add a product to create a new type</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {productTypes.map((type) => {
+                  const typeName = typeof type === 'string' ? type : type.name;
+                  const typeIcon = typeof type === 'object' ? type.icon : '';
+                  return (
+                    <Card
+                      key={typeName}
+                      className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+                      onClick={() => handleTypeSelect(typeName)}
+                    >
+                      <CardContent className="p-8 flex flex-col items-center text-center">
+                        <div className="w-36 h-36 mb-6 flex items-center justify-center group-hover:scale-105 transition-transform">
+                          {typeIcon ? (
+                            <img
+                              src={typeIcon}
+                              alt={typeName}
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                if (e.target.nextSibling) {
+                                  e.target.nextSibling.style.display = 'block';
+                                }
+                              }}
+                            />
+                          ) : null}
+                          <Package 
+                            className="h-24 w-24 text-slate-400"
+                            style={{ display: typeIcon ? 'none' : 'block' }}
+                          />
+                        </div>
+                        <h3 className="text-xl font-semibold text-slate-900">
+                          {typeName}
+                        </h3>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         ) : (
           // Product List View
           <div className="w-full px-8 py-8">
             <div className="space-y-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900 mb-2">{selectedBrand.name} Inventory</h2>
-                  <p className="text-slate-600">Manage stock levels for {selectedBrand.name} products</p>
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">{selectedBrand.name} - {selectedType}</h2>
+                  <p className="text-slate-600">Manage stock levels for {selectedType} products</p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => {
                       setActiveTab('product');
-                      setProductFormData(prev => ({ ...prev, brand: selectedBrand._id }));
+                      setProductFormData(prev => ({ ...prev, brand: selectedBrand._id, type: selectedType }));
                       setIsAddModalOpen(true);
                     }}
                     className="gap-2 bg-slate-900 hover:bg-blue-600 text-white hover:text-white transition-colors"
@@ -317,11 +466,11 @@ const Inventory = () => {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => setSelectedBrand(null)}
+                    onClick={() => setSelectedType(null)}
                     className="gap-2 hover:bg-slate-100 hover:text-slate-900 transition-colors"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Brands
+                    Back to Types
                   </Button>
                 </div>
               </div>
@@ -361,9 +510,9 @@ const Inventory = () => {
                             <p className="text-sm text-slate-600 mb-3">Price: ₹{product.price} per {product.unit}</p>
                             <Badge
                               variant={product.stock < 30 ? "destructive" : "secondary"}
-                              className="text-sm"
+                              className="text-sm text-slate-900"
                             >
-                              Stock: {product.stock} {product.unit}
+                              Stock: {product.stock} 
                             </Badge>
                           </div>
                           <div className="flex items-center gap-3">
@@ -407,6 +556,8 @@ const Inventory = () => {
           setProductFormData({
             name: '',
             brand: '',
+            type: '',
+            typeIcon: '',
             price: '',
             stock: '',
             unit: 'L',
@@ -551,6 +702,36 @@ const Inventory = () => {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label htmlFor="product-type" className="text-sm font-semibold text-slate-900">
+                    Product Type <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="product-type"
+                    placeholder="e.g., Primer, Enamel, Normal Primer, Interior Paints"
+                    value={productFormData.type}
+                    onChange={(e) => setProductFormData({ ...productFormData, type: e.target.value })}
+                    required
+                    disabled={submitting}
+                    className="h-10"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-type-icon" className="text-sm font-semibold text-slate-900">
+                    Product Type Icon URL
+                  </Label>
+                  <Input
+                    id="product-type-icon"
+                    type="url"
+                    placeholder="https://example.com/icon.png"
+                    value={productFormData.typeIcon}
+                    onChange={(e) => setProductFormData({ ...productFormData, typeIcon: e.target.value })}
+                    disabled={submitting}
+                    className="h-10"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="product-price" className="text-sm font-semibold text-slate-900">
@@ -633,6 +814,8 @@ const Inventory = () => {
                       setProductFormData({
                         name: '',
                         brand: '',
+                        type: '',
+                        typeIcon: '',
                         price: '',
                         stock: '',
                         unit: 'L',
