@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from 'lucide-react';
 import authService from '../services/authService';
 import { toast } from 'sonner';
+import logoImage from '../assets/logo paint-Photoroom.png';
 
 const DashboardNavbar = () => {
   const navigate = useNavigate();
@@ -19,8 +20,12 @@ const DashboardNavbar = () => {
       <div className="h-full w-full px-8 flex items-center justify-between">
         {/* Left Side - Logo and Company Name */}
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 bg-slate-900 rounded-lg flex items-center justify-center">
-            <span className="text-white text-2xl font-bold">PE</span>
+          <div className="w-16 h-16 rounded-lg flex items-center justify-center overflow-hidden">
+            <img 
+              src={logoImage} 
+              alt="Paint ERP Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-900">Paint ERP</h1>
@@ -38,7 +43,7 @@ const DashboardNavbar = () => {
             variant="outline"
             size="sm"
             onClick={handleLogout}
-            className="gap-2"
+            className="gap-2 hover:!bg-red-600 hover:!text-white hover:!border-red-600 transition-colors"
           >
             <LogOut className="h-4 w-4" />
             Logout

@@ -7,6 +7,7 @@ import {
   createBrand,
   createProduct,
   getProductTypesByBrand,
+  getAllProductTypes,
   getProductsByBrandAndType,
   createOrUpdateProductType
 } from '../controllers/inventoryController.js';
@@ -21,6 +22,7 @@ router.get('/brands', getBrands);
 router.post('/brands', createBrand);
 router.get('/products', getAllProducts);
 router.post('/products', createProduct);
+router.get('/types', getAllProductTypes);
 router.get('/types/:brandId', getProductTypesByBrand);
 router.post('/types', createOrUpdateProductType);
 router.get('/products/:brandId/:type', getProductsByBrandAndType);

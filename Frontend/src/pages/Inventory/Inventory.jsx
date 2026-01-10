@@ -58,6 +58,21 @@ const Inventory = () => {
     stock: '',
     unit: 'L',
     description: '',
+    productCode: '',
+    productImage: '',
+    lowStockThreshold: 5,
+    stockBySize: {
+      '1L': 0,
+      '4L': 0,
+      '10L': 0,
+      '20L': 0,
+    },
+    priceBySize: {
+      '1L': 0,
+      '4L': 0,
+      '10L': 0,
+      '20L': 0,
+    },
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,19 +99,19 @@ const Inventory = () => {
     }
   }, []); // Empty deps - only create once
 
-  const fetchProductTypes = useCallback(async (brandId) => {
-    if (!brandId || typesFetchedRef.current === brandId) return;
+  const fetchProductTypes = useCallback(async () => {
+    if (typesFetchedRef.current) return;
     setTypesLoading(true);
-    typesFetchedRef.current = brandId;
+    typesFetchedRef.current = true;
     try {
-      const response = await inventoryService.getProductTypesByBrand(brandId);
+      const response = await inventoryService.getAllProductTypes();
       if (response.success) {
         setProductTypes(response.data);
       }
     } catch (error) {
       toast.error('Failed to load product types');
       console.error('Error fetching product types:', error);
-      typesFetchedRef.current = null;
+      typesFetchedRef.current = false;
     } finally {
       setTypesLoading(false);
     }
@@ -129,18 +144,9 @@ const Inventory = () => {
   }, [user, navigate, fetchBrands]);
 
   useEffect(() => {
-    if (selectedBrand?._id) {
-      fetchProductTypes(selectedBrand._id);
-      setSelectedType(null);
-      setProducts([]);
-    } else {
-      typesFetchedRef.current = null;
-      productsFetchedRef.current = null;
-      setProductTypes([]);
-      setSelectedType(null);
-      setProducts([]);
-    }
-  }, [selectedBrand?._id, fetchProductTypes]);
+    // Fetch all product types once (global for all brands)
+    fetchProductTypes();
+  }, [fetchProductTypes]);
 
   useEffect(() => {
     if (selectedBrand?._id && selectedType) {
@@ -162,21 +168,33 @@ const Inventory = () => {
     setSearchQuery('');
   };
 
-  const updateStock = async (productId, change) => {
+  const updateStock = async (productId, change, size = null) => {
     const product = products.find(p => p._id === productId);
     if (!product) return;
 
-    const newStock = product.stock + change;
-    if (newStock < 0) {
-      toast.error('Stock cannot be negative');
-      return;
+    let newStock;
+    if (size && product.stockBySize) {
+      // Update size-specific stock
+      const currentSizeStock = product.stockBySize[size] || 0;
+      newStock = currentSizeStock + change;
+      if (newStock < 0) {
+        toast.error('Stock cannot be negative');
+        return;
+      }
+    } else {
+      // Update total stock (legacy support)
+      newStock = product.stock + change;
+      if (newStock < 0) {
+        toast.error('Stock cannot be negative');
+        return;
+      }
     }
 
     try {
-      const response = await inventoryService.updateStock(productId, newStock);
+      const response = await inventoryService.updateStock(productId, newStock, size);
       if (response.success) {
         setProducts(products.map(p => 
-          p._id === productId ? { ...p, stock: newStock } : p
+          p._id === productId ? response.data : p
         ));
         toast.success('Stock updated successfully');
       }
@@ -232,14 +250,17 @@ const Inventory = () => {
       toast.error('Product type is required');
       return;
     }
-    if (!productFormData.price || productFormData.price <= 0) {
-      toast.error('Valid price is required');
+    if (!productFormData.productImage || !productFormData.productImage.trim()) {
+      toast.error('Product image is required');
       return;
     }
-    if (productFormData.stock === '' || productFormData.stock < 0) {
-      toast.error('Valid stock quantity is required');
+    // Validate stock by size - at least one container should have stock
+    const totalStock = Object.values(productFormData.stockBySize || {}).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+    if (totalStock === 0) {
+      toast.error('Please enter stock quantity for at least one container size');
       return;
     }
+    // Price validation removed - prices will be entered at billing time
 
     setSubmitting(true);
     try {
@@ -247,20 +268,34 @@ const Inventory = () => {
       if (productFormData.typeIcon) {
         await inventoryService.createOrUpdateProductType(
           productFormData.type.trim(),
-          productFormData.brand,
           productFormData.typeIcon
         );
       }
 
-      // Then create the product
+      // Then create the product (price will be set at billing time)
       const response = await inventoryService.createProduct({
         name: productFormData.name,
         brand: productFormData.brand,
         type: productFormData.type.trim(),
-        price: parseFloat(productFormData.price),
-        stock: parseInt(productFormData.stock) || 0,
-        unit: productFormData.unit,
+        price: 0,
+        stock: totalStock,
+        unit: productFormData.unit || 'L',
         description: productFormData.description,
+        productCode: productFormData.productCode || '',
+        productImage: productFormData.productImage || '',
+        lowStockThreshold: parseInt(productFormData.lowStockThreshold) || 5,
+        stockBySize: productFormData.stockBySize || {
+          '1L': 0,
+          '4L': 0,
+          '10L': 0,
+          '20L': 0,
+        },
+        priceBySize: {
+          '1L': 0,
+          '4L': 0,
+          '10L': 0,
+          '20L': 0,
+        },
       });
       if (response.success) {
         toast.success('Product created successfully!');
@@ -273,13 +308,28 @@ const Inventory = () => {
           stock: '',
           unit: 'L',
           description: '',
+          productCode: '',
+          productImage: '',
+          lowStockThreshold: 5,
+          stockBySize: {
+            '1L': 0,
+            '4L': 0,
+            '10L': 0,
+            '20L': 0,
+          },
+          priceBySize: {
+            '1L': 0,
+            '4L': 0,
+            '10L': 0,
+            '20L': 0,
+          },
         });
         setIsAddModalOpen(false);
         // Refresh types and products if viewing a brand
         if (selectedBrand?._id) {
-          typesFetchedRef.current = null;
+          typesFetchedRef.current = false; // Reset to refresh types
           productsFetchedRef.current = null;
-          fetchProductTypes(selectedBrand._id);
+          fetchProductTypes();
           if (selectedType) {
             fetchProductsByBrandAndType(selectedBrand._id, selectedType);
           }
@@ -503,38 +553,87 @@ const Inventory = () => {
                       {filteredProducts.map((product) => (
                         <div
                           key={product._id}
-                          className="flex items-center justify-between p-6 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                          className="p-6 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
                         >
-                          <div className="flex-1">
-                            <h4 className="text-lg font-semibold text-slate-900 mb-1">{product.name}</h4>
-                            <p className="text-sm text-slate-600 mb-3">Price: ₹{product.price} per {product.unit}</p>
-                            <Badge
-                              variant={product.stock < 30 ? "destructive" : "secondary"}
-                              className="text-sm text-slate-900"
-                            >
-                              Stock: {product.stock} 
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => updateStock(product._id, -1)}
-                              className="h-10 w-10 p-0"
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="text-xl font-bold w-20 text-center">
-                              {product.stock}
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => updateStock(product._id, 1)}
-                              className="h-10 w-10 p-0"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </Button>
+                          <div className="flex items-start gap-4">
+                            <div className="w-16 h-16 rounded-lg border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              {product.productImage ? (
+                                <img
+                                  src={product.productImage}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div className={`w-full h-full flex items-center justify-center ${product.productImage ? 'hidden' : ''}`}>
+                                <Package className="h-8 w-8 text-slate-400" />
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-lg font-semibold text-slate-900 mb-1">{product.name}</h4>
+                              {product.stockBySize ? (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                  {['1L', '4L', '10L', '20L'].map((size) => {
+                                    const sizeStock = product.stockBySize?.[size] || 0;
+                                    return (
+                                      <div key={size} className="flex items-center gap-2 p-2 border border-slate-200 rounded-lg bg-white">
+                                        <span className="text-xs font-medium text-slate-700 w-6">{size}</span>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => updateStock(product._id, -1, size)}
+                                          className="h-7 w-7 p-0"
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </Button>
+                                        <span className="text-sm font-bold w-8 text-center">
+                                          {sizeStock}
+                                        </span>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => updateStock(product._id, 1, size)}
+                                          className="h-7 w-7 p-0"
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-3">
+                                  <Badge
+                                    variant={product.stock < 30 ? "destructive" : "secondary"}
+                                    className="text-sm text-slate-900"
+                                  >
+                                    Stock: {product.stock} 
+                                  </Badge>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateStock(product._id, -1)}
+                                    className="h-10 w-10 p-0"
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                  <span className="text-xl font-bold w-20 text-center">
+                                    {product.stock}
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => updateStock(product._id, 1)}
+                                    className="h-10 w-10 p-0"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -562,6 +661,15 @@ const Inventory = () => {
             stock: '',
             unit: 'L',
             description: '',
+            productCode: '',
+            productImage: '',
+            lowStockThreshold: 5,
+            stockBySize: {
+              '1L': 0,
+              '4L': 0,
+              '10L': 0,
+              '20L': 0,
+            },
           });
         }
       }}>
@@ -659,13 +767,51 @@ const Inventory = () => {
 
             <TabsContent value="product" className="mt-0 space-y-6">
               <form onSubmit={handleCreateProduct} className="space-y-5">
+                {/* Product Image */}
+                <div className="space-y-2">
+                  <Label htmlFor="product-image" className="text-sm font-semibold text-slate-900">
+                    Product Image <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-24 h-24 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden">
+                      {productFormData.productImage ? (
+                        <img
+                          src={productFormData.productImage}
+                          alt="Product"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-full h-full flex items-center justify-center ${productFormData.productImage ? 'hidden' : ''}`}>
+                        <Package className="h-8 w-8 text-slate-400" />
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <Input
+                        id="product-image"
+                        type="url"
+                        placeholder=""
+                        value={productFormData.productImage}
+                        onChange={(e) => setProductFormData({ ...productFormData, productImage: e.target.value })}
+                        required
+                        disabled={submitting}
+                        className="h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Product Name */}
                 <div className="space-y-2">
                   <Label htmlFor="product-name" className="text-sm font-semibold text-slate-900">
                     Product Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="product-name"
-                    placeholder=""
+                    placeholder="e.g., Royale Luxury Emulsion"
                     value={productFormData.name}
                     onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
                     required
@@ -674,6 +820,62 @@ const Inventory = () => {
                   />
                 </div>
 
+                {/* Product Code/SKU and Product Type */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="product-code" className="text-sm font-semibold text-slate-900">
+                      Product Code/SKU
+                    </Label>
+                    <Input
+                      id="product-code"
+                      placeholder="e.g., AP-RLE-001"
+                      value={productFormData.productCode}
+                      onChange={(e) => setProductFormData({ ...productFormData, productCode: e.target.value })}
+                      disabled={submitting}
+                      className="h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product-type" className="text-sm font-semibold text-slate-900">
+                      Product Type <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={productFormData.type && ['Paint', 'Primer', 'Enamel', 'Interior Paints'].includes(productFormData.type) ? productFormData.type : 'Other'}
+                      onValueChange={(value) => {
+                        if (value === 'Other') {
+                          setProductFormData({ ...productFormData, type: '' });
+                        } else {
+                          setProductFormData({ ...productFormData, type: value });
+                        }
+                      }}
+                      disabled={submitting}
+                    >
+                      <SelectTrigger id="product-type" className="w-full h-10 bg-white text-slate-900 border-slate-200">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white text-slate-900 border-slate-200">
+                        <SelectItem value="Paint" className="bg-white text-slate-900 focus:bg-slate-100">Paint</SelectItem>
+                        <SelectItem value="Primer" className="bg-white text-slate-900 focus:bg-slate-100">Primer</SelectItem>
+                        <SelectItem value="Enamel" className="bg-white text-slate-900 focus:bg-slate-100">Enamel</SelectItem>
+                        <SelectItem value="Interior Paints" className="bg-white text-slate-900 focus:bg-slate-100">Interior Paints</SelectItem>
+                        <SelectItem value="Other" className="bg-white text-slate-900 focus:bg-slate-100">Other (Custom)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(!productFormData.type || !['Paint', 'Primer', 'Enamel', 'Interior Paints'].includes(productFormData.type)) && (
+                      <Input
+                        id="product-type-custom"
+                        placeholder="Enter custom product type"
+                        value={productFormData.type && !['Paint', 'Primer', 'Enamel', 'Interior Paints'].includes(productFormData.type) ? productFormData.type : ''}
+                        onChange={(e) => setProductFormData({ ...productFormData, type: e.target.value })}
+                        required={!productFormData.type || !['Paint', 'Primer', 'Enamel', 'Interior Paints'].includes(productFormData.type)}
+                        disabled={submitting}
+                        className="h-10 mt-2"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Brand Selection */}
                 <div className="space-y-2">
                   <Label htmlFor="product-brand" className="text-sm font-semibold text-slate-900">
                     Brand <span className="text-red-500">*</span>
@@ -683,17 +885,17 @@ const Inventory = () => {
                     onValueChange={(value) => setProductFormData({ ...productFormData, brand: value })}
                     disabled={submitting}
                   >
-                    <SelectTrigger id="product-brand" className="w-full h-10">
-                      <SelectValue placeholder="" />
+                    <SelectTrigger id="product-brand" className="w-full h-10 bg-white text-slate-900 border-slate-200">
+                      <SelectValue placeholder="Select brand" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-white text-slate-900 border-slate-200">
                       {brands.length === 0 ? (
                         <div className="px-2 py-6 text-center text-sm text-slate-500">
                           No brands available. Create a brand first.
                         </div>
                       ) : (
                         brands.map((brand) => (
-                          <SelectItem key={brand._id} value={brand._id}>
+                          <SelectItem key={brand._id} value={brand._id} className="bg-white text-slate-900 focus:bg-slate-100">
                             {brand.name}
                           </SelectItem>
                         ))
@@ -702,21 +904,7 @@ const Inventory = () => {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="product-type" className="text-sm font-semibold text-slate-900">
-                    Product Type <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="product-type"
-                    placeholder="e.g., Primer, Enamel, Normal Primer, Interior Paints"
-                    value={productFormData.type}
-                    onChange={(e) => setProductFormData({ ...productFormData, type: e.target.value })}
-                    required
-                    disabled={submitting}
-                    className="h-10"
-                  />
-                </div>
-
+                {/* Product Type Icon URL */}
                 <div className="space-y-2">
                   <Label htmlFor="product-type-icon" className="text-sm font-semibold text-slate-900">
                     Product Type Icon URL
@@ -724,7 +912,7 @@ const Inventory = () => {
                   <Input
                     id="product-type-icon"
                     type="url"
-                    placeholder="https://example.com/icon.png"
+                    placeholder=""
                     value={productFormData.typeIcon}
                     onChange={(e) => setProductFormData({ ...productFormData, typeIcon: e.target.value })}
                     disabled={submitting}
@@ -732,65 +920,85 @@ const Inventory = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="product-price" className="text-sm font-semibold text-slate-900">
-                      Price (₹) <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">₹</span>
-                      <Input
-                        id="product-price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder=""
-                        value={productFormData.price}
-                        onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
-                        required
-                        disabled={submitting}
-                        className="h-10 pl-8"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="product-stock" className="text-sm font-semibold text-slate-900">
-                      Initial Stock <span className="text-red-500">*</span>
-                    </Label>
+                {/* Low Stock Alert Threshold */}
+                <div className="space-y-2">
+                  <Label htmlFor="low-stock-threshold" className="text-sm font-semibold text-slate-900">
+                    Low Stock Alert Threshold
+                  </Label>
+                  <div className="relative">
                     <Input
-                      id="product-stock"
+                      id="low-stock-threshold"
                       type="number"
                       min="0"
                       placeholder=""
-                      value={productFormData.stock}
-                      onChange={(e) => setProductFormData({ ...productFormData, stock: e.target.value })}
-                      required
+                      value={productFormData.lowStockThreshold}
+                      onChange={(e) => setProductFormData({ ...productFormData, lowStockThreshold: e.target.value })}
                       disabled={submitting}
-                      className="h-10"
+                      className="h-10 pr-12"
                     />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col">
+                      <button
+                        type="button"
+                        onClick={() => setProductFormData({ ...productFormData, lowStockThreshold: Math.max(0, parseInt(productFormData.lowStockThreshold) + 1) })}
+                        className="h-3 w-3 flex items-center justify-center text-slate-500 hover:text-slate-900"
+                        disabled={submitting}
+                      >
+                        <span className="text-xs">▲</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProductFormData({ ...productFormData, lowStockThreshold: Math.max(0, parseInt(productFormData.lowStockThreshold) - 1) })}
+                        className="h-3 w-3 flex items-center justify-center text-slate-500 hover:text-slate-900"
+                        disabled={submitting}
+                      >
+                        <span className="text-xs">▼</span>
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500">Alert when stock falls below this number</p>
+                </div>
+
+                {/* Stock by Container Size */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold text-slate-900">
+                      Stock by Container Size
+                    </Label>
+                    <span className="text-sm font-semibold text-slate-900">
+                      Total: {Object.values(productFormData.stockBySize || {}).reduce((sum, val) => sum + (parseInt(val) || 0), 0)} units
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {['1L', '4L', '10L', '20L'].map((size) => (
+                      <Card key={size} className="bg-white border border-slate-200 rounded-lg p-4">
+                        <CardContent className="p-0">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Package className="h-5 w-5 text-blue-600" />
+                            <span className="text-sm font-semibold text-slate-900">{size}</span>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-slate-600">Quantity</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="0"
+                              value={productFormData.stockBySize?.[size] || 0}
+                              onChange={(e) => {
+                                const newStockBySize = { ...productFormData.stockBySize };
+                                newStockBySize[size] = parseInt(e.target.value) || 0;
+                                setProductFormData({ ...productFormData, stockBySize: newStockBySize });
+                              }}
+                              disabled={submitting}
+                              className="h-10"
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="product-unit" className="text-sm font-semibold text-slate-900">
-                    Unit of Measurement <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={productFormData.unit}
-                    onValueChange={(value) => setProductFormData({ ...productFormData, unit: value })}
-                    disabled={submitting}
-                  >
-                    <SelectTrigger id="product-unit" className="w-full h-10">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="L">Liters (L)</SelectItem>
-                      <SelectItem value="Kg">Kilograms (Kg)</SelectItem>
-                      <SelectItem value="Pcs">Pieces (Pcs)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
+                {/* Description */}
                 <div className="space-y-2">
                   <Label htmlFor="product-description" className="text-sm font-semibold text-slate-900">
                     Description
@@ -820,6 +1028,15 @@ const Inventory = () => {
                         stock: '',
                         unit: 'L',
                         description: '',
+                        productCode: '',
+                        productImage: '',
+                        lowStockThreshold: 5,
+                        stockBySize: {
+                          '1L': 0,
+                          '4L': 0,
+                          '10L': 0,
+                          '20L': 0,
+                        },
                       });
                     }}
                     disabled={submitting}

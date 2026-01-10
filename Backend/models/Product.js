@@ -14,7 +14,7 @@ const productSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, 'Please provide a price'],
+      default: 0,
       min: [0, 'Price cannot be negative'],
     },
     stock: {
@@ -27,6 +27,64 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please provide a unit'],
       default: 'L',
+    },
+    productCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    productImage: {
+      type: String,
+      default: '',
+    },
+    lowStockThreshold: {
+      type: Number,
+      min: [0, 'Low stock threshold cannot be negative'],
+      default: 5,
+    },
+    stockBySize: {
+      '1L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '4L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '10L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '20L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+    },
+    priceBySize: {
+      '1L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '4L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '10L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '20L': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
     },
     type: {
       type: String,

@@ -6,11 +6,7 @@ const productTypeSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Please provide a product type name'],
       trim: true,
-    },
-    brand: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Brand',
-      required: [true, 'Please provide a brand'],
+      unique: true,
     },
     icon: {
       type: String,
@@ -26,8 +22,8 @@ const productTypeSchema = new mongoose.Schema(
   }
 );
 
-// Ensure unique type per brand
-productTypeSchema.index({ name: 1, brand: 1 }, { unique: true });
+// Ensure unique type name globally
+productTypeSchema.index({ name: 1 }, { unique: true });
 
 const ProductType = mongoose.model('ProductType', productTypeSchema);
 

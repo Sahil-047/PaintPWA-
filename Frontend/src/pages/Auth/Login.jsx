@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import authService from '../../services/authService';
 import { toast } from 'sonner';
+import bgImage from '../../assets/last bg.png';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ const Login = () => {
 
     try {
       const response = await authService.login(formData.email, formData.password);
-      
+
       if (response.success) {
         toast.success('Login successful!');
         navigate('/dashboard');
@@ -34,14 +35,18 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <Card className="w-full max-w-md">
+    <div
+      className="min-h-screen flex items-center justify-center px-4 relative"
+      style={{
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <div className="absolute inset-0 backdrop-blur-sm"></div>
+      <Card className="w-full max-w-md relative z-10 bg-white">
         <CardHeader className="space-y-1 text-center">
-          <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-slate-900 rounded-lg flex items-center justify-center">
-              <span className="text-white text-2xl font-bold">PE</span>
-            </div>
-          </div>
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>
             Enter your credentials to access Paint ERP
@@ -66,8 +71,8 @@ const Login = () => {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
-                type="password"
-                placeholder="••••••••"
+                type="text"
+                placeholder="Enter your password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
@@ -77,7 +82,7 @@ const Login = () => {
 
             <Button 
               type="submit" 
-              className="w-full"
+              className="w-full hover:bg-blue-500 hover:text-white transition-colors"
               disabled={loading}
             >
               {loading ? 'Signing In...' : 'Sign In'}
@@ -86,7 +91,7 @@ const Login = () => {
 
           <div className="mt-4 text-center text-sm">
             Don't have an account?{' '}
-            <Link to="/signup" className="text-primary hover:underline font-medium">
+            <Link to="/signup" className="text-primary hover:text-green-500 hover:underline font-medium transition-colors">
               Sign up
             </Link>
           </div>

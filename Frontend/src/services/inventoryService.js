@@ -38,11 +38,14 @@ const inventoryService = {
     return response.data;
   },
 
-  async updateStock(productId, stock) {
+  async updateStock(productId, stock, size = null) {
     const token = authService.getToken();
+    const payload = size !== null 
+      ? { size, stockBySize: stock }
+      : { stock };
     const response = await axios.patch(
       `${API_URL}/inventory/products/${productId}/stock`,
-      { stock },
+      payload,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -80,14 +83,19 @@ const inventoryService = {
     return response.data;
   },
 
-  async getProductTypesByBrand(brandId) {
+  async getAllProductTypes() {
     const token = authService.getToken();
-    const response = await axios.get(`${API_URL}/inventory/types/${brandId}`, {
+    const response = await axios.get(`${API_URL}/inventory/types`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
     return response.data;
+  },
+
+  async getProductTypesByBrand(brandId) {
+    // For backward compatibility, but now returns all global types
+    return this.getAllProductTypes();
   },
 
   async getProductsByBrandAndType(brandId, type) {
@@ -103,11 +111,11 @@ const inventoryService = {
     return response.data;
   },
 
-  async createOrUpdateProductType(name, brand, icon = '') {
+  async createOrUpdateProductType(name, icon = '') {
     const token = authService.getToken();
     const response = await axios.post(
       `${API_URL}/inventory/types`,
-      { name, brand, icon },
+      { name, icon },
       {
         headers: {
           Authorization: `Bearer ${token}`,

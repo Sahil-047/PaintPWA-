@@ -57,21 +57,9 @@ export const getProductsByBrand = async (req, res) => {
 export const updateStock = async (req, res) => {
   try {
     const { productId } = req.params;
-    const { stock } = req.body;
+    const { stock, size, stockBySize } = req.body;
 
-    if (stock < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Stock cannot be negative',
-      });
-    }
-
-    const product = await Product.findByIdAndUpdate(
-      productId,
-      { stock },
-      { new: true, runValidators: true }
-    ).populate('brand', 'name image');
-
+    const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({
         success: false,
@@ -79,11 +67,68 @@ export const updateStock = async (req, res) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Stock updated successfully',
-      data: product,
-    });
+    // If size is provided, update stockBySize
+    if (size && stockBySize !== undefined) {
+      const validSizes = ['1L', '4L', '10L', '20L'];
+      if (!validSizes.includes(size)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid size. Must be one of: 1L, 4L, 10L, 20L',
+        });
+      }
+
+      if (stockBySize < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Stock cannot be negative',
+        });
+      }
+
+      // Update stockBySize for the specific size
+      const updatedStockBySize = { ...product.stockBySize };
+      updatedStockBySize[size] = stockBySize;
+
+      // Calculate total stock
+      const totalStock = Object.values(updatedStockBySize).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+
+      // Update product
+      product.stockBySize = updatedStockBySize;
+      product.stock = totalStock;
+      await product.save();
+
+      const populatedProduct = await Product.findById(product._id).populate('brand', 'name image');
+
+      res.status(200).json({
+        success: true,
+        message: 'Stock updated successfully',
+        data: populatedProduct,
+      });
+    } else if (stock !== undefined) {
+      // Legacy support: update total stock
+      if (stock < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Stock cannot be negative',
+        });
+      }
+
+      const updatedProduct = await Product.findByIdAndUpdate(
+        productId,
+        { stock },
+        { new: true, runValidators: true }
+      ).populate('brand', 'name image');
+
+      res.status(200).json({
+        success: true,
+        message: 'Stock updated successfully',
+        data: updatedProduct,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Either stock or size and stockBySize must be provided',
+      });
+    }
   } catch (error) {
     console.error('Update stock error:', error);
     res.status(500).json({
@@ -179,7 +224,7 @@ export const createBrand = async (req, res) => {
 // @access  Private
 export const createProduct = async (req, res) => {
   try {
-    const { name, brand, price, stock, unit, type, description } = req.body;
+    const { name, brand, price, stock, unit, type, description, productCode, productImage, lowStockThreshold, stockBySize, priceBySize } = req.body;
 
     // Validation
     if (!name || name.trim() === '') {
@@ -203,12 +248,7 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    if (price === undefined || price < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid price is required',
-      });
-    }
+    // Price is optional - no validation needed
 
     if (stock === undefined || stock < 0) {
       return res.status(400).json({
@@ -239,12 +279,36 @@ export const createProduct = async (req, res) => {
       });
     }
 
+    // Calculate total stock from stockBySize if provided
+    let totalStock = stock || 0;
+    if (stockBySize && (stockBySize['1L'] || stockBySize['4L'] || stockBySize['10L'] || stockBySize['20L'])) {
+      totalStock = (stockBySize['1L'] || 0) + (stockBySize['4L'] || 0) + (stockBySize['10L'] || 0) + (stockBySize['20L'] || 0);
+    }
+
+    // Price is optional - set to 0 if not provided
+    const defaultPrice = price || 0;
+
     const product = await Product.create({
       name: name.trim(),
       brand,
-      price,
-      stock: stock || 0,
+      price: defaultPrice,
+      stock: totalStock,
       unit: unit || 'L',
+      productCode: productCode || '',
+      productImage: productImage || '',
+      lowStockThreshold: lowStockThreshold || 5,
+      stockBySize: stockBySize || {
+        '1L': 0,
+        '4L': 0,
+        '10L': 0,
+        '20L': 0,
+      },
+      priceBySize: priceBySize || {
+        '1L': 0,
+        '4L': 0,
+        '10L': 0,
+        '20L': 0,
+      },
       type: type.trim(),
       description: description || '',
     });
@@ -266,22 +330,18 @@ export const createProduct = async (req, res) => {
   }
 };
 
-// @desc    Get product types by brand
-// @route   GET /api/inventory/types/:brandId
+// @desc    Get all product types (global for all brands)
+// @route   GET /api/inventory/types
 // @access  Private
-export const getProductTypesByBrand = async (req, res) => {
+export const getAllProductTypes = async (req, res) => {
   try {
-    const { brandId } = req.params;
-
-    // Get types from ProductType model
+    // Get all global product types
     const types = await ProductType.find({
-      brand: brandId,
       isActive: true,
     }).sort({ name: 1 });
 
     // Also get distinct types from products (for backward compatibility)
     const productTypes = await Product.distinct('type', {
-      brand: brandId,
       isActive: true,
     });
 
@@ -313,12 +373,20 @@ export const getProductTypesByBrand = async (req, res) => {
   }
 };
 
-// @desc    Create or update product type
+// @desc    Get product types by brand (for backward compatibility, but returns all types)
+// @route   GET /api/inventory/types/:brandId
+// @access  Private
+export const getProductTypesByBrand = async (req, res) => {
+  // Return all global types regardless of brand
+  return getAllProductTypes(req, res);
+};
+
+// @desc    Create or update product type (global for all brands)
 // @route   POST /api/inventory/types
 // @access  Private
 export const createOrUpdateProductType = async (req, res) => {
   try {
-    const { name, brand, icon } = req.body;
+    const { name, icon } = req.body;
 
     if (!name || name.trim() === '') {
       return res.status(400).json({
@@ -327,28 +395,11 @@ export const createOrUpdateProductType = async (req, res) => {
       });
     }
 
-    if (!brand) {
-      return res.status(400).json({
-        success: false,
-        message: 'Brand is required',
-      });
-    }
-
-    // Check if brand exists
-    const brandExists = await Brand.findById(brand);
-    if (!brandExists) {
-      return res.status(404).json({
-        success: false,
-        message: 'Brand not found',
-      });
-    }
-
-    // Create or update product type
+    // Create or update global product type (no brand required)
     const productType = await ProductType.findOneAndUpdate(
-      { name: name.trim(), brand: brand },
+      { name: name.trim() },
       { 
         name: name.trim(), 
-        brand: brand,
         icon: icon || '',
         isActive: true 
       },
