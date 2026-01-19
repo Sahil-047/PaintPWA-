@@ -30,8 +30,8 @@ const productSchema = new mongoose.Schema(
     },
     productCode: {
       type: String,
+      required: [true, 'Product code is required'],
       trim: true,
-      default: '',
     },
     productImage: {
       type: String,
@@ -43,6 +43,26 @@ const productSchema = new mongoose.Schema(
       default: 5,
     },
     stockBySize: {
+      '50ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '100ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '200ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '500ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
       '1L': {
         type: Number,
         default: 0,
@@ -65,6 +85,26 @@ const productSchema = new mongoose.Schema(
       },
     },
     priceBySize: {
+      '50ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '100ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '200ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      '500ml': {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
       '1L': {
         type: Number,
         default: 0,
@@ -110,6 +150,8 @@ productSchema.index({ name: 'text', brand: 'text' });
 productSchema.index({ brand: 1 });
 productSchema.index({ type: 1 });
 productSchema.index({ brand: 1, type: 1 });
+// Unique product code per brand
+productSchema.index({ brand: 1, productCode: 1 }, { unique: true });
 
 const Product = mongoose.model('Product', productSchema);
 

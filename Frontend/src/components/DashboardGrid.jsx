@@ -33,7 +33,7 @@ const DashboardGrid = () => {
       ),
     },
     {
-      title: 'Inventory',
+      title: 'Stock',
       path: '/inventory',
       icon: (
         <svg viewBox="0 0 120 120" className="w-full h-full">
@@ -146,25 +146,55 @@ const DashboardGrid = () => {
     },
   ];
 
+  // Separate priority and secondary modules
+  const priorityModules = modules.filter(m => m.title === 'Billing' || m.title === 'Stock');
+  const secondaryModules = modules.filter(m => m.title === 'Reports' || m.title === 'Settings');
+
   return (
     <div className="w-full px-8 py-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {modules.map((module, index) => (
-          <Card
-            key={module.path}
-            className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-            onClick={() => navigate(module.path)}
-          >
-            <CardContent className="p-8 flex flex-col items-center text-center">
-              <div className="w-36 h-36 mb-6 flex items-center justify-center group-hover:scale-105 transition-transform">
-                {module.icon}
-              </div>
-              <h3 className="text-xl font-semibold text-slate-900">
-                {module.title}
-              </h3>
-            </CardContent>
-          </Card>
-        ))}
+       {/* Priority Modules - Billing and Inventory */}
+       <div className="mb-8">
+         
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           {priorityModules.map((module) => (
+             <Card
+               key={module.path}
+              className="bg-white border-2 border-blue-200 rounded-xl shadow-lg hover:shadow-xl hover:border-blue-400 transition-all cursor-pointer group bg-gradient-to-br from-white to-blue-50 min-h-[360px]"
+              onClick={() => navigate(module.path)}
+            >
+              <CardContent className="p-14 flex flex-col items-center text-center justify-center h-full">
+                <div className="w-48 h-48 mb-8 flex items-center justify-center group-hover:scale-110 transition-transform">
+                  {module.icon}
+                </div>
+                 <h3 className="text-2xl font-bold text-slate-900">
+                   {module.title}
+                 </h3>
+               </CardContent>
+             </Card>
+           ))}
+         </div>
+       </div>
+
+      {/* Secondary Modules - Reports, Settings, and future Scan */}
+      <div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {secondaryModules.map((module) => (
+            <Card
+              key={module.path}
+              className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group opacity-70 hover:opacity-100"
+              onClick={() => navigate(module.path)}
+            >
+              <CardContent className="p-6 flex flex-col items-center text-center">
+                <div className="w-24 h-24 mb-4 flex items-center justify-center group-hover:scale-105 transition-transform">
+                  {module.icon}
+                </div>
+                <h3 className="text-base font-medium text-slate-600">
+                  {module.title}
+                </h3>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

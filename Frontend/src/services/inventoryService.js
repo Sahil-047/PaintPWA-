@@ -124,6 +124,47 @@ const inventoryService = {
     );
     return response.data;
   },
+
+  async bulkUploadProducts(products, brandId, productType) {
+    const token = authService.getToken();
+    const response = await axios.post(
+      `${API_URL}/inventory/products/bulk`,
+      { products, brandId, productType },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async updateProduct(productId, productData) {
+    const token = authService.getToken();
+    const response = await axios.put(
+      `${API_URL}/inventory/products/${productId}`,
+      productData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async deleteProduct(productId) {
+    const token = authService.getToken();
+    const response = await axios.delete(
+      `${API_URL}/inventory/products/${productId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
 };
 
 export default inventoryService;

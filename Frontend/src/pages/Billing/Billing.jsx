@@ -53,7 +53,8 @@ const Billing = () => {
       const response = await inventoryService.getAllProducts();
       if (response.success) {
         setProducts(response.data);
-        setFilteredProducts(response.data);
+        // Don't show products by default - only when searched
+        setFilteredProducts([]);
       }
     } catch (error) {
       toast.error('Failed to load products');
@@ -74,13 +75,15 @@ const Billing = () => {
 
   useEffect(() => {
     if (searchQuery.trim() === '') {
-      setFilteredProducts(products);
+      // Don't show products when search is empty
+      setFilteredProducts([]);
     } else {
       const filtered = products.filter(product => {
         const productName = product.name?.toLowerCase() || '';
         const brandName = product.brand?.name?.toLowerCase() || '';
+        const productCode = product.productCode?.toLowerCase() || '';
         const search = searchQuery.toLowerCase();
-        return productName.includes(search) || brandName.includes(search);
+        return productName.includes(search) || brandName.includes(search) || productCode.includes(search);
       });
       setFilteredProducts(filtered);
     }
@@ -253,8 +256,27 @@ const Billing = () => {
                               </TableRow>
                             ) : filteredProducts.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-slate-500">
-                                  No products found
+                                <TableCell colSpan={6} className="text-center py-12">
+                                  {searchQuery.trim() === '' ? (
+                                    <div className="flex flex-col items-center justify-center gap-4">
+                                      <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center">
+                                        <Search className="h-10 w-10 text-blue-500" />
+                                      </div>
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold text-slate-900">Search for Products</h3>
+                                        <p className="text-sm text-slate-500 max-w-md">
+                                          Start typing in the search box above to find and add products to your cart
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col items-center justify-center gap-3">
+                                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center">
+                                        <Package className="h-8 w-8 text-slate-400" />
+                                      </div>
+                                      <p className="text-sm text-slate-500">No products found matching your search</p>
+                                    </div>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             ) : (
@@ -442,7 +464,7 @@ const Billing = () => {
                   Select Container Size <span className="text-red-500">*</span>
                 </Label>
                 <div className="grid grid-cols-2 gap-4">
-                  {['1L', '4L', '10L', '20L'].map((size) => {
+                  {['50ml', '100ml', '200ml', '500ml', '1L', '4L', '10L', '20L'].map((size) => {
                     const product = sizeSelectionModal.product;
                     const stock = product.stockBySize?.[size] || 0;
                     const price = product.priceBySize?.[size] || product.price || 0;
