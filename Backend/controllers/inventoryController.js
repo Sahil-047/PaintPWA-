@@ -219,6 +219,98 @@ export const createBrand = async (req, res) => {
   }
 };
 
+// @desc    Update a brand
+// @route   PUT /api/inventory/brands/:brandId
+// @access  Private
+export const updateBrand = async (req, res) => {
+  try {
+    const { brandId } = req.params;
+    const { name, image } = req.body;
+
+    const brand = await Brand.findById(brandId);
+    if (!brand || !brand.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Brand not found',
+      });
+    }
+
+    if (name !== undefined) {
+      const trimmed = name.trim();
+      if (!trimmed) {
+        return res.status(400).json({
+          success: false,
+          message: 'Brand name is required',
+        });
+      }
+      const duplicate = await Brand.findOne({
+        name: trimmed,
+        _id: { $ne: brandId },
+      });
+      if (duplicate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Brand with this name already exists',
+        });
+      }
+      brand.name = trimmed;
+    }
+
+    if (image !== undefined) {
+      brand.image = image || '';
+    }
+
+    await brand.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Brand updated successfully',
+      data: brand,
+    });
+  } catch (error) {
+    console.error('Update brand error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating brand',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Delete a brand (soft delete) and its products
+// @route   DELETE /api/inventory/brands/:brandId
+// @access  Private
+export const deleteBrand = async (req, res) => {
+  try {
+    const { brandId } = req.params;
+
+    const brand = await Brand.findById(brandId);
+    if (!brand || !brand.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Brand not found',
+      });
+    }
+
+    brand.isActive = false;
+    await brand.save();
+
+    await Product.updateMany({ brand: brandId }, { isActive: false });
+
+    res.status(200).json({
+      success: true,
+      message: 'Brand deleted successfully',
+    });
+  } catch (error) {
+    console.error('Delete brand error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting brand',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Create a new product
 // @route   POST /api/inventory/products
 // @access  Private
@@ -352,29 +444,40 @@ export const createProduct = async (req, res) => {
 // @access  Private
 export const getAllProductTypes = async (req, res) => {
   try {
-    // Get all global product types
+    const inactiveTypes = await ProductType.find({ isActive: false }).select('name').lean();
+    const hiddenNames = new Set(
+      inactiveTypes.map((t) => t.name).filter(Boolean)
+    );
+
     const types = await ProductType.find({
       isActive: true,
-    }).sort({ name: 1 });
+    })
+      .sort({ name: 1 })
+      .lean();
 
-    // Also get distinct types from products (for backward compatibility)
     const productTypes = await Product.distinct('type', {
       isActive: true,
     });
 
-    // Merge: use ProductType if exists, otherwise create entry from product types
     const typeMap = new Map();
-    types.forEach(type => {
-      typeMap.set(type.name, { name: type.name, icon: type.icon || '' });
+    types.forEach((type) => {
+      typeMap.set(type.name, {
+        _id: type._id.toString(),
+        name: type.name,
+        icon: type.icon || '',
+      });
     });
-    
-    productTypes.forEach(typeName => {
+
+    productTypes.forEach((typeName) => {
+      if (!typeName || hiddenNames.has(typeName)) return;
       if (!typeMap.has(typeName)) {
         typeMap.set(typeName, { name: typeName, icon: '' });
       }
     });
 
-    const result = Array.from(typeMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const result = Array.from(typeMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
 
     res.status(200).json({
       success: true,
@@ -433,6 +536,134 @@ export const createOrUpdateProductType = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error saving product type',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Update product type (name/icon); migrates products when renamed
+// @route   PATCH /api/inventory/types
+// @access  Private
+export const updateProductType = async (req, res) => {
+  try {
+    const { id, oldName, newName, icon } = req.body;
+
+    let pt = null;
+    if (id) {
+      pt = await ProductType.findById(id);
+      if (!pt) {
+        return res.status(404).json({
+          success: false,
+          message: 'Product type not found',
+        });
+      }
+    } else if (oldName && oldName.trim()) {
+      pt = await ProductType.findOne({ name: oldName.trim() });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Either id or oldName is required',
+      });
+    }
+
+    let previousName;
+    if (pt) {
+      previousName = pt.name;
+      pt.isActive = true;
+    } else {
+      previousName = oldName.trim();
+    }
+
+    const nextName =
+      newName !== undefined && String(newName).trim() !== ''
+        ? String(newName).trim()
+        : previousName;
+
+    const nextIcon =
+      icon !== undefined ? (icon || '') : (pt ? pt.icon || '' : '');
+
+    if (nextName !== previousName) {
+      const clashQuery = { name: nextName };
+      if (pt) clashQuery._id = { $ne: pt._id };
+      const clash = await ProductType.findOne(clashQuery);
+      if (clash) {
+        return res.status(400).json({
+          success: false,
+          message: 'A product type with this name already exists',
+        });
+      }
+
+      await Product.updateMany(
+        { type: previousName, isActive: true },
+        { $set: { type: nextName } }
+      );
+    }
+
+    if (pt) {
+      pt.name = nextName;
+      if (icon !== undefined) pt.icon = icon || '';
+      await pt.save();
+    } else {
+      await ProductType.findOneAndUpdate(
+        { name: nextName },
+        { name: nextName, icon: nextIcon, isActive: true },
+        { upsert: true, new: true, runValidators: true }
+      );
+    }
+
+    const saved =
+      pt || (await ProductType.findOne({ name: nextName, isActive: true }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Product type updated successfully',
+      data: saved,
+    });
+  } catch (error) {
+    console.error('Update product type error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating product type',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Hide product type from catalog (soft delete / tombstone)
+// @route   DELETE /api/inventory/types?name=
+// @access  Private
+export const deleteProductType = async (req, res) => {
+  try {
+    const name = (req.query.name || req.body?.name || '').trim();
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Product type name is required',
+      });
+    }
+
+    const existing = await ProductType.findOne({ name });
+    if (existing) {
+      existing.isActive = false;
+      await existing.save();
+    } else {
+      await ProductType.create({
+        name,
+        icon: '',
+        isActive: false,
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Product type removed from catalog',
+    });
+  } catch (error) {
+    console.error('Delete product type error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting product type',
       error: error.message,
     });
   }
@@ -767,4 +998,3 @@ export const deleteProduct = async (req, res) => {
     });
   }
 };
-

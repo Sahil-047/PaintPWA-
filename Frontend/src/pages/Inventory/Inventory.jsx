@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -201,6 +201,12 @@ const Inventory = () => {
     color: '',
   });
 
+  const [isEditBrandModalOpen, setIsEditBrandModalOpen] = useState(false);
+  const [editingBrand, setEditingBrand] = useState(null);
+  const [brandEditFormData, setBrandEditFormData] = useState({ name: '', image: '' });
+  const [isEditTypeModalOpen, setIsEditTypeModalOpen] = useState(false);
+  const [editingType, setEditingType] = useState(null);
+
   const fetchBrands = useCallback(async () => {
     if (brandsFetched.current) return; // Prevent multiple calls
     setLoading(true);
@@ -211,7 +217,8 @@ const Inventory = () => {
         // Add image paths to brands
         const brandsWithImages = response.data.map(brand => ({
           ...brand,
-          image: brand.image || `/brands/${brand.name.toLowerCase().replace(/\s+/g, '-')}.png`
+          imageUrl: brand.image || '',
+          image: brand.image || `/brands/${brand.name.toLowerCase().replace(/\s+/g, '-')}.png`,
         }));
         setBrands(brandsWithImages);
       }
@@ -249,7 +256,6 @@ const Inventory = () => {
           const normalizedDefault = defaultName.toUpperCase().trim();
           const dbType = dbTypesMap.get(normalizedDefault);
           if (dbType) {
-            // Use DB version but keep the default name format
             return { ...dbType, name: defaultName };
           }
           return { name: defaultName, icon: '', isActive: true };
@@ -771,6 +777,154 @@ const Inventory = () => {
     }
   };
 
+  const openEditBrand = (brand) => {
+    setEditingBrand(brand);
+    setBrandEditFormData({
+      name: brand.name,
+      image: brand.imageUrl ?? '',
+    });
+    setIsEditBrandModalOpen(true);
+  };
+
+  const handleUpdateBrand = async (e) => {
+    e.preventDefault();
+    if (!editingBrand) return;
+    if (!brandEditFormData.name.trim()) {
+      toast.error('Brand name is required');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const response = await inventoryService.updateBrand(editingBrand._id, {
+        name: brandEditFormData.name.trim(),
+        image: brandEditFormData.image.trim(),
+      });
+      if (response.success) {
+        toast.success('Brand updated successfully!');
+        setIsEditBrandModalOpen(false);
+        setEditingBrand(null);
+        if (selectedBrand?._id === editingBrand._id && response.data) {
+          const b = response.data;
+          setSelectedBrand({
+            ...b,
+            imageUrl: b.image || '',
+            image: b.image || `/brands/${b.name.toLowerCase().replace(/\s+/g, '-')}.png`,
+          });
+        }
+        brandsFetched.current = false;
+        fetchBrands();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update brand');
+      console.error('Error updating brand:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteBrand = async (brand) => {
+    if (
+      !window.confirm(
+        `Delete brand "${brand.name}"? All products under this brand will be removed from the catalog.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const response = await inventoryService.deleteBrand(brand._id);
+      if (response.success) {
+        toast.success('Brand deleted successfully!');
+        if (selectedBrand?._id === brand._id) {
+          setSelectedBrand(null);
+          setSelectedType(null);
+        }
+        brandsFetched.current = false;
+        fetchBrands();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete brand');
+      console.error('Error deleting brand:', error);
+    }
+  };
+
+  const openEditType = (typeObj, typeName, typeIcon) => {
+    setEditingType({
+      _id: typeObj._id,
+      name: typeName,
+      icon: typeIcon || '',
+      originalName: typeName,
+    });
+    setIsEditTypeModalOpen(true);
+  };
+
+  const handleUpdateType = async (e) => {
+    e.preventDefault();
+    if (!editingType) return;
+    if (!editingType.name.trim()) {
+      toast.error('Section name is required');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const payload = {
+        oldName: editingType.originalName,
+        newName: editingType.name.trim(),
+        icon: editingType.icon.trim(),
+      };
+      if (editingType._id) {
+        payload.id = editingType._id;
+      }
+      const response = await inventoryService.updateProductType(payload);
+      if (response.success) {
+        const oldName = editingType.originalName;
+        const newName = editingType.name.trim();
+        toast.success('Section updated successfully!');
+        setIsEditTypeModalOpen(false);
+        setEditingType(null);
+        if (selectedType === oldName) {
+          setSelectedType(newName);
+        }
+        typesFetchedRef.current = false;
+        fetchProductTypes();
+        if (selectedBrand?._id && selectedType === oldName) {
+          productsFetchedRef.current = null;
+          fetchProductsByBrandAndType(selectedBrand._id, newName);
+        }
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update section');
+      console.error('Error updating product type:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteType = async (typeName) => {
+    if (
+      !window.confirm(
+        `Remove "${typeName}" from the catalog? Existing products keep their type but this section will no longer appear here.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const response = await inventoryService.deleteProductType(typeName);
+      if (response.success) {
+        toast.success('Section removed from catalog');
+        if (selectedType === typeName) {
+          setSelectedType(null);
+          setProducts([]);
+          productsFetchedRef.current = null;
+        }
+        typesFetchedRef.current = false;
+        fetchProductTypes();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to remove section');
+      console.error('Error deleting product type:', error);
+    }
+  };
+
   const handleCreateBrand = async (e) => {
     e.preventDefault();
     if (!brandFormData.name.trim()) {
@@ -957,24 +1111,54 @@ const Inventory = () => {
                 {brands.map((brand) => (
                   <Card
                     key={brand._id}
-                    className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-                    onClick={() => handleBrandSelect(brand)}
+                    className="flex min-h-[300px] flex-col gap-0 overflow-hidden border border-slate-200 bg-white py-0 shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <CardContent className="p-8 flex flex-col items-center text-center">
-                      <div className="w-36 h-36 mb-6 flex items-center justify-center group-hover:scale-105 transition-transform">
-                        <img
-                          src={brand.image}
-                          alt={brand.name}
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            e.target.src = '/brands/default.png';
-                          }}
-                        />
-                      </div>
-                      <h3 className="text-xl font-semibold text-slate-900">
-                        {brand.name}
-                      </h3>
+                    <CardContent className="flex flex-1 flex-col items-center justify-center px-6 pb-4 pt-8 text-center">
+                      <button
+                        type="button"
+                        className="group flex w-full flex-col items-center rounded-lg outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-slate-400"
+                        onClick={() => handleBrandSelect(brand)}
+                      >
+                        <div className="mb-5 flex h-36 w-36 shrink-0 items-center justify-center transition-transform group-hover:scale-105">
+                          <img
+                            src={brand.image}
+                            alt={brand.name}
+                            className="h-full w-full object-contain"
+                            onError={(e) => {
+                              e.target.src = '/brands/default.png';
+                            }}
+                          />
+                        </div>
+                        <h3 className="text-xl font-semibold text-slate-900">
+                          {brand.name}
+                        </h3>
+                        <span className="mt-2 text-xs font-medium text-slate-500">
+                          Open inventory
+                        </span>
+                      </button>
                     </CardContent>
+                    <CardFooter className="mt-auto flex w-full gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 flex-1 gap-1.5 border-slate-200 bg-white font-medium shadow-sm hover:bg-blue-50 hover:text-blue-800"
+                        onClick={() => openEditBrand(brand)}
+                      >
+                        <Edit className="h-4 w-4 shrink-0" />
+                        Edit brand
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 flex-1 gap-1.5 border-slate-200 bg-white font-medium text-red-600 shadow-sm hover:bg-red-50 hover:text-red-700"
+                        onClick={() => handleDeleteBrand(brand)}
+                      >
+                        <Trash2 className="h-4 w-4 shrink-0" />
+                        Delete
+                      </Button>
+                    </CardFooter>
                   </Card>
                 ))}
               </div>
@@ -1049,10 +1233,37 @@ const Inventory = () => {
                   
                   return (
                     <Card
-                      key={typeName}
-                      className="bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
+                      key={typeof type === 'object' && type._id ? type._id : typeName}
+                      className="relative bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
                       onClick={() => handleTypeSelect(typeName)}
                     >
+                      <div
+                        className="absolute top-2 right-2 flex gap-1 z-10"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 bg-white/95 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+                          onClick={() =>
+                            openEditType(typeof type === 'object' ? type : { name: typeName }, typeName, typeIcon)
+                          }
+                          aria-label={`Edit section ${typeName}`}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 bg-white/95 hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                          onClick={() => handleDeleteType(typeName)}
+                          aria-label={`Remove section ${typeName}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <CardContent className="p-8 flex flex-col items-center text-center">
                         <div className="w-36 h-36 mb-6 flex items-center justify-center group-hover:scale-105 transition-transform">
                           {shouldUseReactIcon ? (
@@ -2071,6 +2282,142 @@ const Inventory = () => {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Brand Modal */}
+      <Dialog
+        open={isEditBrandModalOpen}
+        onOpenChange={(open) => {
+          setIsEditBrandModalOpen(open);
+          if (!open) setEditingBrand(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] bg-white !bg-white border-slate-200">
+          <DialogHeader className="pb-4 border-b border-slate-200">
+            <DialogTitle className="text-2xl font-bold text-slate-900">Edit Brand</DialogTitle>
+            <DialogDescription className="text-slate-600 mt-1.5">
+              Update the brand name or logo URL
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateBrand} className="space-y-5 mt-6">
+            <div className="space-y-2">
+              <Label htmlFor="edit-brand-name" className="text-sm font-semibold text-slate-900">
+                Brand Name <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="edit-brand-name"
+                value={brandEditFormData.name}
+                onChange={(e) => setBrandEditFormData({ ...brandEditFormData, name: e.target.value })}
+                disabled={submitting}
+                className="h-10"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-brand-image" className="text-sm font-semibold text-slate-900">
+                Brand Logo URL
+              </Label>
+              <Input
+                id="edit-brand-image"
+                type="url"
+                value={brandEditFormData.image}
+                onChange={(e) => setBrandEditFormData({ ...brandEditFormData, image: e.target.value })}
+                disabled={submitting}
+                className="h-10"
+                placeholder="Optional — leave empty to use default asset path"
+              />
+            </div>
+            <DialogFooter className="pt-4 border-t border-slate-200 mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsEditBrandModalOpen(false)}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting} className="bg-slate-900 hover:bg-slate-800 text-white">
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save changes'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Section (product type) Modal */}
+      <Dialog
+        open={isEditTypeModalOpen}
+        onOpenChange={(open) => {
+          setIsEditTypeModalOpen(open);
+          if (!open) setEditingType(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px] bg-white !bg-white border-slate-200">
+          <DialogHeader className="pb-4 border-b border-slate-200">
+            <DialogTitle className="text-2xl font-bold text-slate-900">Edit Section</DialogTitle>
+            <DialogDescription className="text-slate-600 mt-1.5">
+              Rename updates all products using this type. Icon URL is optional (built-in icons are used when empty).
+            </DialogDescription>
+          </DialogHeader>
+          {editingType && (
+            <form onSubmit={handleUpdateType} className="space-y-5 mt-6">
+              <div className="space-y-2">
+                <Label htmlFor="edit-type-name" className="text-sm font-semibold text-slate-900">
+                  Section name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="edit-type-name"
+                  value={editingType.name}
+                  onChange={(e) => setEditingType({ ...editingType, name: e.target.value })}
+                  disabled={submitting}
+                  className="h-10"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-type-icon" className="text-sm font-semibold text-slate-900">
+                  Custom icon URL
+                </Label>
+                <Input
+                  id="edit-type-icon"
+                  type="url"
+                  value={editingType.icon}
+                  onChange={(e) => setEditingType({ ...editingType, icon: e.target.value })}
+                  disabled={submitting}
+                  className="h-10"
+                  placeholder="Optional"
+                />
+              </div>
+              <DialogFooter className="pt-4 border-t border-slate-200 mt-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditTypeModalOpen(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting} className="bg-slate-900 hover:bg-slate-800 text-white">
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save changes'
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
 

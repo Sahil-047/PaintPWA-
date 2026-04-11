@@ -69,6 +69,30 @@ const inventoryService = {
     return response.data;
   },
 
+  async updateBrand(brandId, { name, image }) {
+    const token = authService.getToken();
+    const response = await axios.put(
+      `${API_URL}/inventory/brands/${brandId}`,
+      { name, image },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async deleteBrand(brandId) {
+    const token = authService.getToken();
+    const response = await axios.delete(`${API_URL}/inventory/brands/${brandId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  },
+
   async createProduct(productData) {
     const token = authService.getToken();
     const response = await axios.post(
@@ -125,6 +149,29 @@ const inventoryService = {
     return response.data;
   },
 
+  async updateProductType(payload) {
+    const token = authService.getToken();
+    const response = await axios.patch(`${API_URL}/inventory/types`, payload, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  },
+
+  async deleteProductType(name) {
+    const token = authService.getToken();
+    const response = await axios.delete(
+      `${API_URL}/inventory/types?name=${encodeURIComponent(name)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
   async bulkUploadProducts(products, brandId, productType) {
     const token = authService.getToken();
     const response = await axios.post(
@@ -168,4 +215,3 @@ const inventoryService = {
 };
 
 export default inventoryService;
-

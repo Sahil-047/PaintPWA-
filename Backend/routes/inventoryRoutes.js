@@ -5,11 +5,15 @@ import {
   updateStock,
   getAllProducts,
   createBrand,
+  updateBrand,
+  deleteBrand,
   createProduct,
   getProductTypesByBrand,
   getAllProductTypes,
   getProductsByBrandAndType,
   createOrUpdateProductType,
+  updateProductType,
+  deleteProductType,
   bulkUploadProducts,
   updateProduct,
   deleteProduct
@@ -23,10 +27,14 @@ router.use(protect);
 
 router.get('/brands', getBrands);
 router.post('/brands', createBrand);
+router.put('/brands/:brandId', updateBrand);
+router.delete('/brands/:brandId', deleteBrand);
 router.get('/products', getAllProducts);
 router.post('/products', createProduct);
 router.post('/products/bulk', bulkUploadProducts);
 router.get('/types', getAllProductTypes);
+router.patch('/types', updateProductType);
+router.delete('/types', deleteProductType);
 router.get('/types/:brandId', getProductTypesByBrand);
 router.post('/types', createOrUpdateProductType);
 router.get('/products/:brandId/:type', getProductsByBrandAndType);
@@ -36,4 +44,3 @@ router.put('/products/:productId', updateProduct);
 router.delete('/products/:productId', deleteProduct);
 
 export default router;
-
