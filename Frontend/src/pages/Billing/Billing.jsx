@@ -446,8 +446,8 @@ const Billing = () => {
 
       {/* Size Selection Modal */}
       <Dialog open={sizeSelectionModal.open} onOpenChange={(open) => setSizeSelectionModal({ open, product: null, selectedSize: null, quantity: 1, price: '' })}>
-        <DialogContent className="sm:max-w-[500px] bg-white !bg-white border-slate-200">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[500px] bg-white !bg-white border-slate-200 max-h-[85vh] flex flex-col gap-4 overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="text-2xl font-bold text-slate-900">
               Select Container Size
             </DialogTitle>
@@ -457,7 +457,7 @@ const Billing = () => {
           </DialogHeader>
 
           {sizeSelectionModal.product && (
-            <div className="space-y-6 py-4">
+            <div className="space-y-6 py-4 min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {/* Size Selection */}
               <div>
                 <Label className="text-sm font-semibold text-slate-900 mb-3 block">
@@ -580,7 +580,7 @@ const Billing = () => {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0">
             <Button
               variant="outline"
               onClick={() => setSizeSelectionModal({ open: false, product: null, selectedSize: null, quantity: 1, price: '' })}
