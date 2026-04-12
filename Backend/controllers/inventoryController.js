@@ -316,7 +316,7 @@ export const deleteBrand = async (req, res) => {
 // @access  Private
 export const createProduct = async (req, res) => {
   try {
-    const { name, brand, price, stock, unit, type, description, productCode, productImage, lowStockThreshold, stockBySize, priceBySize } = req.body;
+    const { name, brand, price, stock, unit, type, base, description, productCode, productImage, lowStockThreshold, stockBySize, priceBySize } = req.body;
 
     // Validation
     if (!name || name.trim() === '') {
@@ -338,6 +338,15 @@ export const createProduct = async (req, res) => {
         success: false,
         message: 'Product type is required',
       });
+    }
+
+    if (type.trim().toLowerCase().includes('paint')) {
+      if (!base || base.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Base is required for paints',
+        });
+      }
     }
 
     // Price is optional - no validation needed
@@ -366,13 +375,23 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    // Check if product with same product code already exists for this brand
+    const isPaint = type.trim().toLowerCase().includes('paint');
+    const baseVal = isPaint && base ? base.trim() : '';
+
+    // Check if product with same product code (and base) already exists for this brand
     const existingProduct = await Product.findOne({
       productCode: productCode.trim(),
       brand: brand,
+      base: baseVal
     });
 
     if (existingProduct) {
+      if (isPaint && baseVal) {
+        return res.status(400).json({
+          success: false,
+          message: 'Product with this product code and base already exists for this brand',
+        });
+      }
       return res.status(400).json({
         success: false,
         message: 'Product with this product code already exists for this brand',
@@ -419,6 +438,7 @@ export const createProduct = async (req, res) => {
         '20L': 0,
       },
       type: type.trim(),
+      base: base ? base.trim() : '',
       description: description || '',
     });
 
@@ -876,7 +896,7 @@ export const bulkUploadProducts = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { productId } = req.params;
-    const { name, productCode, productImage, lowStockThreshold, stockBySize, priceBySize, description, type } = req.body;
+    const { name, productCode, productImage, lowStockThreshold, stockBySize, priceBySize, description, type, base } = req.body;
 
     const product = await Product.findById(productId);
     if (!product) {
@@ -885,16 +905,29 @@ export const updateProduct = async (req, res) => {
         message: 'Product not found',
       });
     }
+    
+    const isPaint = nextType.toLowerCase().includes('paint');
+    const baseVal = isPaint && nextBase ? nextBase : '';
 
-    // Validate product code if provided and different
-    if (productCode && productCode.trim() !== product.productCode) {
+    // Validate product code (and base) if provided and different
+    const codeToCheck = productCode !== undefined ? productCode.trim() : product.productCode;
+    
+    // We must check if either code or base changed
+    if (codeToCheck !== product.productCode || baseVal !== product.base) {
       const existingProduct = await Product.findOne({
-        productCode: productCode.trim(),
+        productCode: codeToCheck,
         brand: product.brand,
+        base: baseVal,
         _id: { $ne: productId },
       });
 
       if (existingProduct) {
+        if (isPaint && baseVal) {
+          return res.status(400).json({
+            success: false,
+            message: 'Product with this product code and base already exists for this brand',
+          });
+        }
         return res.status(400).json({
           success: false,
           message: 'Product with this product code already exists for this brand',
@@ -935,9 +968,14 @@ export const updateProduct = async (req, res) => {
       product.productImage = productImage;
     }
     
+    
     if (lowStockThreshold !== undefined) product.lowStockThreshold = lowStockThreshold;
     if (description !== undefined) product.description = description;
-    if (type !== undefined) product.type = type.trim();
+    
+    // Apply type and base
+    if (type !== undefined) product.type = nextType;
+    if (base !== undefined) product.base = nextBase;
+
     if (stockBySize !== undefined) {
       product.stockBySize = stockBySize;
       // Recalculate total stock

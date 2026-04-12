@@ -60,10 +60,19 @@ if (!process.env.JWT_SECRET) {
 
 mongoose
   .connect(MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('✅ MongoDB connected successfully');
     console.log(`📦 Database: ${mongoose.connection.name}`);
     
+    try {
+      await mongoose.connection.db.collection('products').dropIndex('brand_1_productCode_1');
+      console.log('✅ Dropped deprecated unique index (brand_1_productCode_1).');
+    } catch (e) {
+      if (e.codeName !== 'IndexNotFound') {
+        console.log('ℹ️ Could not drop index:', e.message);
+      }
+    }
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);

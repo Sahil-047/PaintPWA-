@@ -129,11 +129,13 @@ const Inventory = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('brand');
   const [brandFormData, setBrandFormData] = useState({ name: '', image: '' });
+  const [categoryFormData, setCategoryFormData] = useState({ name: '', icon: '' });
   const [productFormData, setProductFormData] = useState({
     name: '',
     brand: '',
     type: '',
     typeIcon: '',
+    base: '',
     price: '',
     stock: '',
     unit: 'L',
@@ -198,6 +200,7 @@ const Inventory = () => {
     },
     description: '',
     type: '',
+    base: '',
     color: '',
   });
 
@@ -699,6 +702,7 @@ const Inventory = () => {
       },
       description: product.description || '',
       type: product.type || '',
+      base: product.base || '',
       color: color, // Store color separately for editing
     });
     setIsEditModalOpen(true);
@@ -719,6 +723,13 @@ const Inventory = () => {
       return;
     }
 
+    if (editFormData.type && editFormData.type.toLowerCase().includes('paint')) {
+      if (!editFormData.base || !editFormData.base.trim()) {
+        toast.error('Base is required for paints');
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       // Construct full product name with color if color exists
@@ -735,6 +746,7 @@ const Inventory = () => {
         priceBySize: editFormData.priceBySize,
         description: editFormData.description,
         type: editFormData.type || editingProduct.type,
+        base: editFormData.type && editFormData.type.toLowerCase().includes('paint') ? editFormData.base : '',
       });
 
       if (response.success) {
@@ -861,7 +873,7 @@ const Inventory = () => {
     e.preventDefault();
     if (!editingType) return;
     if (!editingType.name.trim()) {
-      toast.error('Section name is required');
+      toast.error('Category name is required');
       return;
     }
     setSubmitting(true);
@@ -878,7 +890,7 @@ const Inventory = () => {
       if (response.success) {
         const oldName = editingType.originalName;
         const newName = editingType.name.trim();
-        toast.success('Section updated successfully!');
+        toast.success('Category updated successfully!');
         setIsEditTypeModalOpen(false);
         setEditingType(null);
         if (selectedType === oldName) {
@@ -892,7 +904,7 @@ const Inventory = () => {
         }
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to update section');
+      toast.error(error.response?.data?.message || 'Failed to update category');
       console.error('Error updating product type:', error);
     } finally {
       setSubmitting(false);
@@ -902,7 +914,7 @@ const Inventory = () => {
   const handleDeleteType = async (typeName) => {
     if (
       !window.confirm(
-        `Remove "${typeName}" from the catalog? Existing products keep their type but this section will no longer appear here.`
+        `Remove "${typeName}" from the catalog? Existing products keep their type but this category will no longer appear here.`
       )
     ) {
       return;
@@ -910,7 +922,7 @@ const Inventory = () => {
     try {
       const response = await inventoryService.deleteProductType(typeName);
       if (response.success) {
-        toast.success('Section removed from catalog');
+        toast.success('Category removed from catalog');
         if (selectedType === typeName) {
           setSelectedType(null);
           setProducts([]);
@@ -920,7 +932,7 @@ const Inventory = () => {
         fetchProductTypes();
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to remove section');
+      toast.error(error.response?.data?.message || 'Failed to remove category');
       console.error('Error deleting product type:', error);
     }
   };
@@ -953,6 +965,34 @@ const Inventory = () => {
     }
   };
 
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    if (!categoryFormData.name.trim()) {
+      toast.error('Category name is required');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await inventoryService.createOrUpdateProductType(
+        categoryFormData.name.trim(),
+        categoryFormData.icon
+      );
+      if (response.success) {
+        toast.success('Category created successfully!');
+        setCategoryFormData({ name: '', icon: '' });
+        setIsAddModalOpen(false);
+        typesFetchedRef.current = false; // Reset to allow refetch
+        fetchProductTypes();
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to create category');
+      console.error('Error creating category:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleCreateProduct = async (e) => {
     e.preventDefault();
     if (!productFormData.name.trim()) {
@@ -971,13 +1011,18 @@ const Inventory = () => {
       toast.error('Product image is required');
       return;
     }
-    // Validate stock by size - at least one container should have stock
-    const totalStock = Object.values(productFormData.stockBySize || {}).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
-    if (totalStock === 0) {
-      toast.error('Please enter stock quantity for at least one container size');
+    
+    const isPaint = productFormData.type && productFormData.type.toLowerCase().includes('paint');
+    const basesList = isPaint 
+      ? productFormData.base.split(',').map(b => b.trim()).filter(b => b)
+      : [''];
+
+    if (isPaint && basesList.length === 0) {
+      toast.error('At least one Base is required for paints (comma separated)');
       return;
     }
-    // Price validation removed - prices will be entered at billing time
+
+    const totalStock = Object.values(productFormData.stockBySize || {}).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
 
     setSubmitting(true);
     try {
@@ -989,65 +1034,44 @@ const Inventory = () => {
         );
       }
 
-      // Then create the product (price will be set at billing time)
-      const response = await inventoryService.createProduct({
-        name: productFormData.name,
-        brand: productFormData.brand,
-        type: productFormData.type.trim(),
-        price: 0,
-        stock: totalStock,
-        unit: productFormData.unit || 'L',
-        description: productFormData.description,
-        productCode: productFormData.productCode || '',
-        productImage: productFormData.productImage || '',
-        lowStockThreshold: parseInt(productFormData.lowStockThreshold) || 5,
-        stockBySize: productFormData.stockBySize || {
-          '50ml': 0,
-          '100ml': 0,
-          '200ml': 0,
-          '500ml': 0,
-          '1L': 0,
-          '4L': 0,
-          '10L': 0,
-          '20L': 0,
-        },
-        priceBySize: {
-          '50ml': 0,
-          '100ml': 0,
-          '200ml': 0,
-          '500ml': 0,
-          '1L': 0,
-          '4L': 0,
-          '10L': 0,
-          '20L': 0,
-        },
-      });
-      if (response.success) {
-        toast.success('Product created successfully!');
-        setProductFormData({
-          name: '',
-          brand: '',
-          type: '',
-          typeIcon: '',
-          price: '',
-          stock: '',
-          unit: 'L',
-          description: '',
-          productCode: '',
-          productImage: '',
-          lowStockThreshold: 5,
-          stockBySize: {
-            '1L': 0,
-            '4L': 0,
-            '10L': 0,
-            '20L': 0,
+      // Then create the products
+      let lastResponse = null;
+      for (const baseName of basesList) {
+        
+        lastResponse = await inventoryService.createProduct({
+          name: productFormData.name,
+          brand: productFormData.brand,
+          type: productFormData.type.trim(),
+          base: baseName,
+          price: 0,
+          stock: totalStock,
+          unit: productFormData.unit || 'L',
+          description: productFormData.description,
+          productCode: productFormData.productCode || '',
+          productImage: productFormData.productImage || '',
+          lowStockThreshold: parseInt(productFormData.lowStockThreshold) || 5,
+          stockBySize: productFormData.stockBySize || {
+            '50ml': 0, '100ml': 0, '200ml': 0, '500ml': 0,
+            '1L': 0, '4L': 0, '10L': 0, '20L': 0,
           },
           priceBySize: {
-            '1L': 0,
-            '4L': 0,
-            '10L': 0,
-            '20L': 0,
+            '50ml': 0, '100ml': 0, '200ml': 0, '500ml': 0,
+            '1L': 0, '4L': 0, '10L': 0, '20L': 0,
           },
+        });
+        
+        if (!lastResponse.success) {
+          // Break early if any fails
+          break;
+        }
+      }
+
+      if (lastResponse && lastResponse.success) {
+        toast.success(basesList.length > 1 ? `Created ${basesList.length} variants successfully!` : 'Product created successfully!');
+        setProductFormData({
+          name: '', brand: '', type: '', typeIcon: '', base: '', price: '', stock: '', unit: 'L', description: '', productCode: '', productImage: '', lowStockThreshold: 5,
+          stockBySize: { '1L': 0, '4L': 0, '10L': 0, '20L': 0 },
+          priceBySize: { '1L': 0, '4L': 0, '10L': 0, '20L': 0 },
         });
         setIsAddModalOpen(false);
         // Refresh types and products if viewing a brand
@@ -1059,9 +1083,11 @@ const Inventory = () => {
             fetchProductsByBrandAndType(selectedBrand._id, selectedType);
           }
         }
+      } else {
+         toast.error(lastResponse?.message || 'Failed to create product(s)');
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to create product');
+      toast.error(error.response?.data?.message || 'Failed to create product(s)');
       console.error('Error creating product:', error);
     } finally {
       setSubmitting(false);
@@ -1165,14 +1191,24 @@ const Inventory = () => {
             )}
           </div>
         ) : !selectedType ? (
-          // Product Types View
+          // Categories View
           <div className="w-full px-8 py-4">
             <div className="mb-8 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-2">{selectedBrand.name} - Product Types</h2>
-                <p className="text-slate-600">Select a product type to manage inventory</p>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">{selectedBrand.name} - Categories</h2>
+                <p className="text-slate-600">Select a category to manage inventory</p>
               </div>
               <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    setActiveTab('category');
+                    setIsAddModalOpen(true);
+                  }}
+                  className="gap-2 bg-slate-900 hover:bg-green-600 text-white hover:text-white transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Category
+                </Button>
                 <Button
                   onClick={() => {
                     setActiveTab('product');
@@ -1204,8 +1240,8 @@ const Inventory = () => {
             ) : productTypes.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
                 <Package className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">No product types found</p>
-                <p className="text-sm mt-2">Add a product to create a new type</p>
+                <p className="text-lg">No categories found</p>
+                <p className="text-sm mt-2">Add a category or product</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1249,7 +1285,7 @@ const Inventory = () => {
                           onClick={() =>
                             openEditType(typeof type === 'object' ? type : { name: typeName }, typeName, typeIcon)
                           }
-                          aria-label={`Edit section ${typeName}`}
+                          aria-label={`Edit category ${typeName}`}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -1259,7 +1295,7 @@ const Inventory = () => {
                           size="sm"
                           className="h-8 w-8 p-0 bg-white/95 hover:bg-red-50 hover:border-red-300 hover:text-red-600"
                           onClick={() => handleDeleteType(typeName)}
-                          aria-label={`Remove section ${typeName}`}
+                          aria-label={`Remove category ${typeName}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1328,7 +1364,7 @@ const Inventory = () => {
                     className="gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to Types
+                    Back to Categories
                   </Button>
                 </div>
               </div>
@@ -1408,6 +1444,9 @@ const Inventory = () => {
                                 </TableCell>
                                 <TableCell className="text-slate-700">
                                   {baseProductName}
+                                  {product.base && (
+                                    <span className="font-bold ml-2">(Base: {product.base})</span>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-slate-600">
                                   {productColor || '-'}
@@ -1452,6 +1491,7 @@ const Inventory = () => {
         if (!open) {
           setActiveTab('brand');
           setBrandFormData({ name: '', image: '' });
+          setCategoryFormData({ name: '', icon: '' });
           setProductFormData({
             name: '',
             brand: '',
@@ -1482,13 +1522,20 @@ const Inventory = () => {
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-6">
-            <TabsList className="grid w-full grid-cols-2 mb-6 gap-4">
+            <TabsList className="grid w-full grid-cols-3 mb-6 gap-4">
               <TabsTrigger 
                 value="brand" 
                 className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm h-12 text-base font-semibold hover:bg-blue-100 hover:text-blue-700 transition-colors"
               >
                 <Building2 className="h-5 w-5" />
                 Add Brand
+              </TabsTrigger>
+              <TabsTrigger 
+                value="category" 
+                className="gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm h-12 text-base font-semibold hover:bg-green-100 hover:text-green-700 transition-colors"
+              >
+                <Building2 className="h-5 w-5" />
+                Add Category
               </TabsTrigger>
               <TabsTrigger 
                 value="product" 
@@ -1558,6 +1605,72 @@ const Inventory = () => {
                       <>
                         <Plus className="h-4 w-4 mr-2" />
                         Create Brand
+                      </>
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="category" className="mt-0 space-y-6">
+              <form onSubmit={handleCreateCategory} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="category-name" className="text-sm font-semibold text-slate-900">
+                    Category Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="category-name"
+                    placeholder="e.g. Interior Paints"
+                    value={categoryFormData.name}
+                    onChange={(e) => setCategoryFormData({ ...categoryFormData, name: e.target.value })}
+                    required
+                    disabled={submitting}
+                    className="h-10"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="category-icon" className="text-sm font-semibold text-slate-900">
+                    Category Icon URL
+                  </Label>
+                  <Input
+                    id="category-icon"
+                    type="url"
+                    placeholder=""
+                    value={categoryFormData.icon}
+                    onChange={(e) => setCategoryFormData({ ...categoryFormData, icon: e.target.value })}
+                    disabled={submitting}
+                    className="h-10"
+                  />
+                </div>
+
+                <DialogFooter className="pt-4 border-t border-slate-200 mt-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddModalOpen(false);
+                      setCategoryFormData({ name: '', icon: '' });
+                    }}
+                    disabled={submitting}
+                    className="min-w-[100px]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={submitting}
+                    className="min-w-[140px] bg-slate-900 hover:bg-slate-800 text-white"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create Category
                       </>
                     )}
                   </Button>
@@ -1674,6 +1787,24 @@ const Inventory = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Base Details Conditionally */}
+                {productFormData.type && productFormData.type.toLowerCase().includes('paint') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="product-base" className="text-sm font-semibold text-slate-900">
+                      Bases (comma separated) <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="product-base"
+                      placeholder="e.g., Base 1, Base 2"
+                      value={productFormData.base}
+                      onChange={(e) => setProductFormData({ ...productFormData, base: e.target.value })}
+                      required
+                      disabled={submitting}
+                      className="h-10"
+                    />
+                  </div>
+                )}
 
                 {/* Brand Selection */}
                 <div className="space-y-2">
@@ -2168,6 +2299,24 @@ const Inventory = () => {
               </div>
             </div>
 
+            {/* Base Details Conditionally */}
+            {editFormData.type && editFormData.type.toLowerCase().includes('paint') && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-product-base" className="text-sm font-semibold text-slate-900">
+                  Base <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="edit-product-base"
+                  placeholder="e.g., Base 1, White, Clear"
+                  value={editFormData.base}
+                  onChange={(e) => setEditFormData({ ...editFormData, base: e.target.value })}
+                  required
+                  disabled={submitting}
+                  className="h-10"
+                />
+              </div>
+            )}
+
             {/* Low Stock Alert Threshold */}
             <div className="space-y-2">
               <Label htmlFor="edit-low-stock-threshold" className="text-sm font-semibold text-slate-900">
@@ -2454,6 +2603,9 @@ const Inventory = () => {
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-slate-900 mb-1">
                     {getBaseProductName(selectedProductDetails.name)}
+                    {selectedProductDetails.base && (
+                      <span className="font-bold ml-2">(Base: {selectedProductDetails.base})</span>
+                    )}
                   </h3>
                   <p className="text-sm text-slate-600 mb-1">
                     <span className="font-semibold">Product Code:</span> {selectedProductDetails.productCode || '-'}

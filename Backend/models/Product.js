@@ -131,6 +131,11 @@ const productSchema = new mongoose.Schema(
       required: [true, 'Please provide a product type'],
       trim: true,
     },
+    base: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     description: {
       type: String,
       default: '',
@@ -150,8 +155,8 @@ productSchema.index({ name: 'text', brand: 'text' });
 productSchema.index({ brand: 1 });
 productSchema.index({ type: 1 });
 productSchema.index({ brand: 1, type: 1 });
-// Unique product code per brand
-productSchema.index({ brand: 1, productCode: 1 }, { unique: true });
+// Unique product code (and base) per brand
+productSchema.index({ brand: 1, productCode: 1, base: 1 }, { unique: true });
 
 const Product = mongoose.model('Product', productSchema);
 
