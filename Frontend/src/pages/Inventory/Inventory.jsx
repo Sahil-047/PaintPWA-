@@ -1077,7 +1077,7 @@ const Inventory = () => {
         <Button
           variant="ghost"
           onClick={() => navigate('/dashboard')}
-          className="gap-2"
+          className="gap-2 hover:text-blue-600 hover:bg-blue-50"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
@@ -1185,12 +1185,12 @@ const Inventory = () => {
                   Add Product
                 </Button>
                 <Button
-                  variant="outline"
+                  variant="outlineOrange"
                   onClick={() => {
                     setSelectedBrand(null);
                     setSelectedType(null);
                   }}
-                  className="gap-2 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                  className="gap-2"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back to Brands
@@ -1323,9 +1323,9 @@ const Inventory = () => {
                     Add Product
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="outlineOrange"
                     onClick={() => setSelectedType(null)}
-                    className="gap-2 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+                    className="gap-2"
                   >
                     <ArrowLeft className="h-4 w-4" />
                     Back to Types

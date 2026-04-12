@@ -144,7 +144,7 @@ const Reports = () => {
         <Button
           variant="ghost"
           onClick={() => navigate('/dashboard')}
-          className="gap-2"
+          className="gap-2 hover:text-blue-600 hover:bg-blue-50"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Dashboard
