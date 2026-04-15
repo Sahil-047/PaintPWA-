@@ -647,9 +647,19 @@ const Inventory = () => {
     }
   };
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredProducts = products.filter(product => {
+    const search = searchQuery.toLowerCase();
+    const productName = product.name?.toLowerCase() || '';
+    const productCode = product.productCode?.toLowerCase() || '';
+    
+    // Only search by base if the product type is a paint
+    const isPaint = product.type?.toLowerCase().includes('paint');
+    const baseName = (isPaint && product.base) ? product.base.toLowerCase() : '';
+    
+    return productName.includes(search) || 
+           productCode.includes(search) || 
+           (baseName && baseName.includes(search));
+  });
 
   // Helper function to extract color from product name (format: "Product Name - Color")
   const extractColorFromName = (productName) => {
@@ -1375,7 +1385,7 @@ const Inventory = () => {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input
-                        placeholder="Search products..."
+                        placeholder="Search products by name, code, or base (paints only)..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-10"

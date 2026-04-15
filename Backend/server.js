@@ -12,7 +12,16 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://paintappstore.in',
+    'http://localhost:5173',
+    'http://localhost:3000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -23,8 +32,8 @@ app.use('/api/billing', billingRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    success: true, 
+  res.json({
+    success: true,
     message: 'Paint ERP API is running',
     timestamp: new Date().toISOString()
   });
@@ -63,7 +72,7 @@ mongoose
   .then(async () => {
     console.log('✅ MongoDB connected successfully');
     console.log(`📦 Database: ${mongoose.connection.name}`);
-    
+
     try {
       await mongoose.connection.db.collection('products').dropIndex('brand_1_productCode_1');
       console.log('✅ Dropped deprecated unique index (brand_1_productCode_1).');

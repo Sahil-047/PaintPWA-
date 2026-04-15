@@ -82,8 +82,16 @@ const Billing = () => {
         const productName = product.name?.toLowerCase() || '';
         const brandName = product.brand?.name?.toLowerCase() || '';
         const productCode = product.productCode?.toLowerCase() || '';
+        
+        // Only search by base if it's a paint
+        const isPaint = product.type?.toLowerCase().includes('paint');
+        const baseName = (isPaint && product.base) ? product.base.toLowerCase() : '';
+        
         const search = searchQuery.toLowerCase();
-        return productName.includes(search) || brandName.includes(search) || productCode.includes(search);
+        return productName.includes(search) || 
+               brandName.includes(search) || 
+               productCode.includes(search) || 
+               (baseName && baseName.includes(search));
       });
       setFilteredProducts(filtered);
     }
@@ -225,7 +233,7 @@ const Billing = () => {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
                       <Input
-                        placeholder="Search products by name or brand..."
+                        placeholder="Search products by name, brand, code, or base (paints only)..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-10"
@@ -242,6 +250,7 @@ const Billing = () => {
                               <TableHead className="font-semibold sticky left-0 bg-slate-50 z-20 w-16"></TableHead>
                               <TableHead className="font-semibold sticky left-16 bg-slate-50 z-20">Product Name</TableHead>
                               <TableHead className="font-semibold">Brand</TableHead>
+                              <TableHead className="font-semibold">Base</TableHead>
                               <TableHead className="font-semibold">Price</TableHead>
                               <TableHead className="font-semibold">Stock</TableHead>
                               <TableHead className="font-semibold text-right">Action</TableHead>
@@ -250,13 +259,13 @@ const Billing = () => {
                           <TableBody>
                             {loading ? (
                               <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8">
+                                <TableCell colSpan={7} className="text-center py-8">
                                   <Loader2 className="h-6 w-6 animate-spin mx-auto text-slate-400" />
                                 </TableCell>
                               </TableRow>
                             ) : filteredProducts.length === 0 ? (
                               <TableRow>
-                                <TableCell colSpan={6} className="text-center py-12">
+                                <TableCell colSpan={7} className="text-center py-12">
                                   {searchQuery.trim() === '' ? (
                                     <div className="flex flex-col items-center justify-center gap-4">
                                       <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center">
@@ -305,11 +314,24 @@ const Billing = () => {
                                         </div>
                                       </div>
                                     </TableCell>
-                                    <TableCell className="font-medium sticky left-16 bg-white z-10">{product.name}</TableCell>
+                                    <TableCell className="font-medium sticky left-16 bg-white z-10">
+                                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                                        <span>{product.name}</span>
+                                      </div>
+                                    </TableCell>
                                     <TableCell>
                                       <Badge variant="secondary" className="text-xs">
                                         {product.brand?.name || 'N/A'}
                                       </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      {product.base ? (
+                                        <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-50">
+                                          {product.base}
+                                        </Badge>
+                                      ) : (
+                                        <span className="text-slate-400 text-sm">-</span>
+                                      )}
                                     </TableCell>
                                     <TableCell className="text-slate-500 italic">Set at billing</TableCell>
                                     <TableCell>
@@ -369,7 +391,14 @@ const Billing = () => {
                             <div key={item.cartItemId} className="border border-slate-200 rounded-lg p-4">
                               <div className="flex justify-between items-start mb-3">
                                 <div className="flex-1">
-                                  <h5 className="font-semibold text-slate-900 mb-1">{item.name}</h5>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <h5 className="font-semibold text-slate-900">{item.name}</h5>
+                                    {item.base && (
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-50 text-[10px] px-1.5 py-0 font-medium">
+                                        Base: {item.base}
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <p className="text-sm text-slate-600">
                                     {item.selectedSize && (
                                       <Badge variant="outline" className="mr-2">
