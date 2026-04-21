@@ -340,11 +340,11 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    if (type.trim().toLowerCase().includes('paint')) {
+    if (type.trim().toLowerCase().includes('paint') || type.trim().toLowerCase().includes('enamel')) {
       if (!base || base.trim() === '') {
         return res.status(400).json({
           success: false,
-          message: 'Base is required for paints',
+          message: 'Base is required for paints and enamels',
         });
       }
     }
@@ -375,7 +375,7 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    const isPaint = type.trim().toLowerCase().includes('paint');
+    const isPaint = type.trim().toLowerCase().includes('paint') || type.trim().toLowerCase().includes('enamel');
     const baseVal = isPaint && base ? base.trim() : '';
 
     // Check if product with same product code (and base) already exists for this brand
@@ -905,8 +905,9 @@ export const updateProduct = async (req, res) => {
         message: 'Product not found',
       });
     }
-    
-    const isPaint = nextType.toLowerCase().includes('paint');
+    const nextType = type !== undefined ? type.trim() : product.type;
+    const nextBase = base !== undefined ? base.trim() : product.base;
+    const isPaint = nextType.toLowerCase().includes('paint') || nextType.toLowerCase().includes('enamel');
     const baseVal = isPaint && nextBase ? nextBase : '';
 
     // Validate product code (and base) if provided and different

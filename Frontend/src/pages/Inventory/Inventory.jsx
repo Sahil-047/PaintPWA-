@@ -653,7 +653,7 @@ const Inventory = () => {
     const productCode = product.productCode?.toLowerCase() || '';
     
     // Only search by base if the product type is a paint
-    const isPaint = product.type?.toLowerCase().includes('paint');
+    const isPaint = product.type?.toLowerCase().includes('paint') || product.type?.toLowerCase().includes('enamel');
     const baseName = (isPaint && product.base) ? product.base.toLowerCase() : '';
     
     return productName.includes(search) || 
@@ -733,7 +733,7 @@ const Inventory = () => {
       return;
     }
 
-    if (editFormData.type && editFormData.type.toLowerCase().includes('paint')) {
+    if (editFormData.type && (editFormData.type.toLowerCase().includes('paint') || editFormData.type.toLowerCase().includes('enamel'))) {
       if (!editFormData.base || !editFormData.base.trim()) {
         toast.error('Base is required for paints');
         return;
@@ -756,7 +756,7 @@ const Inventory = () => {
         priceBySize: editFormData.priceBySize,
         description: editFormData.description,
         type: editFormData.type || editingProduct.type,
-        base: editFormData.type && editFormData.type.toLowerCase().includes('paint') ? editFormData.base : '',
+        base: editFormData.type && (editFormData.type.toLowerCase().includes('paint') || editFormData.type.toLowerCase().includes('enamel')) ? editFormData.base : '',
       });
 
       if (response.success) {
@@ -1022,7 +1022,7 @@ const Inventory = () => {
       return;
     }
     
-    const isPaint = productFormData.type && productFormData.type.toLowerCase().includes('paint');
+    const isPaint = productFormData.type && (productFormData.type.toLowerCase().includes('paint') || productFormData.type.toLowerCase().includes('enamel'));
     const basesList = isPaint 
       ? productFormData.base.split(',').map(b => b.trim()).filter(b => b)
       : [''];
@@ -1799,7 +1799,7 @@ const Inventory = () => {
                 </div>
 
                 {/* Base Details Conditionally */}
-                {productFormData.type && productFormData.type.toLowerCase().includes('paint') && (
+                {productFormData.type && (productFormData.type.toLowerCase().includes('paint') || productFormData.type.toLowerCase().includes('enamel')) && (
                   <div className="space-y-2">
                     <Label htmlFor="product-base" className="text-sm font-semibold text-slate-900">
                       Bases (comma separated) <span className="text-red-500">*</span>
@@ -2310,7 +2310,7 @@ const Inventory = () => {
             </div>
 
             {/* Base Details Conditionally */}
-            {editFormData.type && editFormData.type.toLowerCase().includes('paint') && (
+            {editFormData.type && (editFormData.type.toLowerCase().includes('paint') || editFormData.type.toLowerCase().includes('enamel')) && (
               <div className="space-y-2">
                 <Label htmlFor="edit-product-base" className="text-sm font-semibold text-slate-900">
                   Base <span className="text-red-500">*</span>

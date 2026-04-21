@@ -84,7 +84,7 @@ const Billing = () => {
         const productCode = product.productCode?.toLowerCase() || '';
         
         // Only search by base if it's a paint
-        const isPaint = product.type?.toLowerCase().includes('paint');
+        const isPaint = product.type?.toLowerCase().includes('paint') || product.type?.toLowerCase().includes('enamel');
         const baseName = (isPaint && product.base) ? product.base.toLowerCase() : '';
         
         const search = searchQuery.toLowerCase();
