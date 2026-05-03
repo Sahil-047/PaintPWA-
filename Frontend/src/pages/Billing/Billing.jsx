@@ -43,7 +43,31 @@ const Billing = () => {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const productsFetched = useRef(false);
+  const [sizeModalLoading, setSizeModalLoading] = useState(false);
   const [sizeSelectionModal, setSizeSelectionModal] = useState({ open: false, product: null, selectedSize: null, quantity: 1, price: '' });
+
+  const mergeProductsWithFreshData = useCallback((freshResults) => {
+    setProducts((prev) => {
+      const freshById = new Map();
+      for (const r of freshResults) {
+        if (r?.success && r?.data) freshById.set(String(r.data._id), r.data);
+      }
+      if (freshById.size === 0) return prev;
+      const idsInPrev = new Set(prev.map((p) => String(p._id)));
+      const merged = prev.map((p) =>
+        freshById.has(String(p._id)) ? freshById.get(String(p._id)) : p
+      );
+      for (const [id, data] of freshById) {
+        if (!idsInPrev.has(id)) merged.push(data);
+      }
+      return merged;
+    });
+  }, []);
+
+  const fetchProductsByIds = useCallback(async (productIds) => {
+    const unique = [...new Set(productIds.map(String))];
+    return Promise.all(unique.map((id) => inventoryService.getProductById(id)));
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     if (productsFetched.current) return; // Prevent multiple calls
@@ -97,8 +121,36 @@ const Billing = () => {
     }
   }, [searchQuery, products]);
 
-  const openSizeSelection = (product) => {
-    setSizeSelectionModal({ open: true, product, selectedSize: null, quantity: 1, price: '' });
+  const resetSizeModal = () => {
+    setSizeModalLoading(false);
+    setSizeSelectionModal({ open: false, product: null, selectedSize: null, quantity: 1, price: '' });
+  };
+
+  const openSizeSelection = async (product) => {
+    setSizeModalLoading(true);
+    setSizeSelectionModal({ open: true, product: null, selectedSize: null, quantity: 1, price: '' });
+    try {
+      const r = await inventoryService.getProductById(product._id);
+      if (!r.success || !r.data) {
+        toast.error(r.message || 'Failed to load product');
+        resetSizeModal();
+        return;
+      }
+      mergeProductsWithFreshData([r]);
+      setSizeSelectionModal({
+        open: true,
+        product: r.data,
+        selectedSize: null,
+        quantity: 1,
+        price: '',
+      });
+    } catch (error) {
+      toast.error('Failed to load product');
+      console.error(error);
+      resetSizeModal();
+    } finally {
+      setSizeModalLoading(false);
+    }
   };
 
   const addToCartWithSize = (product, size, quantity = 1, price = 0) => {
@@ -139,7 +191,7 @@ const Billing = () => {
       }]);
     }
     toast.success(`${product.name} (${size}) added to cart`);
-    setSizeSelectionModal({ open: false, product: null, selectedSize: null, quantity: 1, price: '' });
+    resetSizeModal();
   };
 
   const updateQuantity = (cartItemId, change) => {
@@ -175,28 +227,62 @@ const Billing = () => {
       toast.error('Cart is empty');
       return;
     }
-    
+
+    const cartProductIds = cart.map((item) => item.productId);
+
     try {
-      // Format items for backend
-      const items = cart.map(item => ({
+      const preResults = await fetchProductsByIds(cartProductIds);
+      mergeProductsWithFreshData(preResults);
+
+      const freshById = new Map();
+      for (const r of preResults) {
+        if (r.success && r.data) freshById.set(String(r.data._id), r.data);
+      }
+
+      for (const item of cart) {
+        const p = freshById.get(String(item.productId));
+        if (!p) {
+          toast.error(`Product "${item.name}" is no longer available. Remove it from the cart.`);
+          return;
+        }
+        const hasPerSizeStock =
+          p.stockBySize != null && Object.keys(p.stockBySize).length > 0;
+        const sizeStock = hasPerSizeStock
+          ? parseInt(p.stockBySize[item.selectedSize], 10) || 0
+          : p.stock || 0;
+        if (item.quantity > sizeStock) {
+          toast.error(
+            `Insufficient stock for ${p.name} (${item.selectedSize}). Available: ${sizeStock}`
+          );
+          return;
+        }
+      }
+
+      const items = cart.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
         size: item.selectedSize || null,
-        price: item.price || 0
+        price: item.price || 0,
       }));
 
       const response = await billingService.createInvoice(items, 18);
-      
+
       if (response.success) {
         toast.success('Invoice generated successfully!');
         setCart([]);
-        // Refresh products to get updated stock
-        productsFetched.current = false; // Reset flag to allow refresh
-        fetchProducts();
+        const postResults = await fetchProductsByIds(cartProductIds);
+        mergeProductsWithFreshData(postResults);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create invoice');
       console.error('Error creating invoice:', error);
+      try {
+        const refreshed = await fetchProductsByIds(cartProductIds);
+        mergeProductsWithFreshData(refreshed);
+      } catch (_) {
+        productsFetched.current = false;
+        await fetchProducts();
+      }
     }
   };
 
@@ -474,18 +560,22 @@ const Billing = () => {
       </main>
 
       {/* Size Selection Modal */}
-      <Dialog open={sizeSelectionModal.open} onOpenChange={(open) => setSizeSelectionModal({ open, product: null, selectedSize: null, quantity: 1, price: '' })}>
+      <Dialog open={sizeSelectionModal.open} onOpenChange={(open) => { if (!open) resetSizeModal(); }}>
         <DialogContent className="sm:max-w-[500px] bg-white !bg-white border-slate-200 max-h-[85vh] flex flex-col gap-4 overflow-hidden">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-2xl font-bold text-slate-900">
               Select Container Size
             </DialogTitle>
             <DialogDescription className="text-slate-600 mt-1.5">
-              {sizeSelectionModal.product?.name}
+              {sizeModalLoading ? 'Loading latest stock…' : sizeSelectionModal.product?.name || ''}
             </DialogDescription>
           </DialogHeader>
 
-          {sizeSelectionModal.product && (
+          {sizeModalLoading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+            </div>
+          ) : sizeSelectionModal.product ? (
             <div className="space-y-6 py-4 min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               {/* Size Selection */}
               <div>
@@ -607,12 +697,13 @@ const Billing = () => {
                 </>
               )}
             </div>
-          )}
+          ) : null}
 
           <DialogFooter className="shrink-0">
             <Button
               variant="outline"
-              onClick={() => setSizeSelectionModal({ open: false, product: null, selectedSize: null, quantity: 1, price: '' })}
+              onClick={() => resetSizeModal()}
+              disabled={sizeModalLoading}
             >
               Cancel
             </Button>
@@ -633,7 +724,12 @@ const Billing = () => {
                   sizeSelectionModal.price
                 );
               }}
-              disabled={!sizeSelectionModal.selectedSize || !sizeSelectionModal.price || parseFloat(sizeSelectionModal.price) <= 0}
+              disabled={
+                sizeModalLoading ||
+                !sizeSelectionModal.selectedSize ||
+                !sizeSelectionModal.price ||
+                parseFloat(sizeSelectionModal.price) <= 0
+              }
               className="bg-slate-900 hover:bg-blue-600 text-white"
             >
               <Plus className="h-4 w-4 mr-2" />

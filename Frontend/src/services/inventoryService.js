@@ -38,6 +38,31 @@ const inventoryService = {
     return response.data;
   },
 
+  async getProductById(productId) {
+    const token = authService.getToken();
+    const response = await axios.get(`${API_URL}/inventory/products/by-id/${productId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  },
+
+  /** Partial update — same payload shape as updateProduct (PUT); only sent fields are applied. */
+  async patchProductById(productId, partialProductData) {
+    const token = authService.getToken();
+    const response = await axios.patch(
+      `${API_URL}/inventory/products/by-id/${productId}`,
+      partialProductData,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  },
+
   async updateStock(productId, stock, size = null) {
     const token = authService.getToken();
     const payload = size !== null 

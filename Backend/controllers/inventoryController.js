@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 import Brand from '../models/Brand.js';
 import ProductType from '../models/ProductType.js';
@@ -171,6 +172,46 @@ export const getAllProducts = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error fetching products',
+      error: error.message,
+    });
+  }
+};
+
+// @desc    Get single product by ID (billing / inventory detail)
+// @route   GET /api/inventory/products/by-id/:productId
+// @access  Private
+export const getProductById = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product id',
+      });
+    }
+
+    const product = await Product.findOne({
+      _id: productId,
+      isActive: true,
+    }).populate('brand', 'name image');
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: product,
+    });
+  } catch (error) {
+    console.error('Get product by id error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching product',
       error: error.message,
     });
   }
@@ -1004,6 +1045,10 @@ export const updateProduct = async (req, res) => {
     });
   }
 };
+
+// Same partial-update semantics as PUT /products/:productId — only fields present in body are applied.
+// @route   PATCH /api/inventory/products/by-id/:productId
+export const patchProductById = updateProduct;
 
 // @desc    Delete a product (soft delete)
 // @route   DELETE /api/inventory/products/:productId

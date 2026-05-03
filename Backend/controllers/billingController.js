@@ -1,6 +1,8 @@
 import Invoice from '../models/Invoice.js';
 import Product from '../models/Product.js';
 
+const VALID_SIZES = ['50ml', '100ml', '200ml', '500ml', '1L', '4L', '10L', '20L'];
+
 // @desc    Create invoice
 // @route   POST /api/billing/invoices
 // @access  Private
@@ -30,26 +32,58 @@ export const createInvoice = async (req, res) => {
         });
       }
 
-      if (product.stock < item.quantity) {
+      const quantity = item.quantity;
+      if (item.size && !VALID_SIZES.includes(item.size)) {
         return res.status(400).json({
           success: false,
-          message: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
+          message: 'Invalid container size in invoice item.',
         });
       }
+      const size = item.size || null;
 
-      const itemTotal = product.price * item.quantity;
+      if (size) {
+        const updatedStockBySize = {};
+        for (const s of VALID_SIZES) {
+          updatedStockBySize[s] = parseInt(product.stockBySize?.[s], 10) || 0;
+        }
+        const currentSizeStock = updatedStockBySize[size];
+        if (currentSizeStock < quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for ${product.name} (${size}). Available: ${currentSizeStock}`,
+          });
+        }
+
+        updatedStockBySize[size] = Math.max(0, currentSizeStock - quantity);
+        product.stockBySize = updatedStockBySize;
+        product.markModified('stockBySize');
+        product.stock = Object.values(updatedStockBySize).reduce(
+          (sum, val) => sum + (parseInt(val, 10) || 0),
+          0
+        );
+      } else {
+        if (product.stock < quantity) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
+          });
+        }
+        product.stock -= quantity;
+      }
+
+      const unitPrice =
+        item.price != null && Number(item.price) > 0 ? Number(item.price) : Number(product.price) || 0;
+      const itemTotal = unitPrice * quantity;
       subtotal += itemTotal;
 
       invoiceItems.push({
         product: product._id,
         productName: product.name,
-        quantity: item.quantity,
-        price: product.price,
+        quantity,
+        price: unitPrice,
         total: itemTotal,
       });
 
-      // Update product stock
-      product.stock -= item.quantity;
       await product.save();
     }
 

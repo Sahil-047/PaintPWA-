@@ -16,6 +16,8 @@ import {
   deleteProductType,
   bulkUploadProducts,
   updateProduct,
+  patchProductById,
+  getProductById,
   deleteProduct
 } from '../controllers/inventoryController.js';
 import { protect } from '../middlewares/authMiddleware.js';
@@ -30,6 +32,8 @@ router.post('/brands', createBrand);
 router.put('/brands/:brandId', updateBrand);
 router.delete('/brands/:brandId', deleteBrand);
 router.get('/products', getAllProducts);
+router.get('/products/by-id/:productId', getProductById);
+router.patch('/products/by-id/:productId', patchProductById);
 router.post('/products', createProduct);
 router.post('/products/bulk', bulkUploadProducts);
 router.get('/types', getAllProductTypes);
