@@ -1,0 +1,14 @@
+import { Router } from 'express';
+import { authMiddleware } from '../../middlewares/auth.middleware.js';
+import { tenantMiddleware } from '../../middlewares/tenant.middleware.js';
+import * as reportsController from './reports.controller.js';
+
+const router = Router();
+
+router.use(authMiddleware, tenantMiddleware);
+
+router.get('/dashboard', reportsController.dashboard);
+router.get('/snapshots', reportsController.snapshots);
+router.get('/snapshots/:period', reportsController.snapshotByPeriod);
+
+export default router;
