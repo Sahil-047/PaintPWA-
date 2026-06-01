@@ -9,5 +9,8 @@ router.use(authMiddleware, tenantMiddleware);
 
 router.get('/', accountsController.listAccounts);
 router.get('/customers', accountsController.listCustomers);
+router.post('/customers', accountsController.createCustomer);
+router.get('/customers/:customerId', accountsController.getCustomerDetail);
+router.patch('/customers/:customerId', accountsController.updateCustomer);
 
 export default router;

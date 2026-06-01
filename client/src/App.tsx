@@ -8,6 +8,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import BillingPage from '@/pages/BillingPage';
 import InventoryPage from '@/pages/InventoryPage';
 import ReportsPage from '@/pages/ReportsPage';
+import AccountsPage from '@/pages/AccountsPage';
 import SettingsPage from '@/pages/SettingsPage';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
             <Route path={ROUTES.BILLING} element={<BillingPage />} />
             <Route path={ROUTES.INVENTORY} element={<InventoryPage />} />
             <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
+            <Route path={ROUTES.ACCOUNTS} element={<AccountsPage />} />
             <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
           </Route>
         </Route>

@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getTenantId } from '../../middlewares/tenant.middleware.js';
-import { sendCreated, sendSuccess } from '../../utils/response.helper.js';
+import { sendCreated, sendPaginated, sendSuccess } from '../../utils/response.helper.js';
 import * as billingService from './billing.service.js';
-import { createBillSchema } from './billing.validator.js';
+import { billingProductsQuerySchema, createBillSchema } from './billing.validator.js';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -27,6 +27,16 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const bills = await billingService.listBills(getTenantId(req));
     sendSuccess(res, bills);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listProducts(req: Request, res: Response, next: NextFunction) {
+  try {
+    const query = billingProductsQuerySchema.parse(req.query);
+    const result = await billingService.listBillingProducts(getTenantId(req), query);
+    sendPaginated(res, result.items, result.pagination);
   } catch (err) {
     next(err);
   }

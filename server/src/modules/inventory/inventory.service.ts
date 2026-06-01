@@ -134,16 +134,7 @@ export async function listProducts(
   tenantId: Types.ObjectId,
   filters?: { brandId?: string; type?: string; search?: string }
 ) {
-  const filter: Record<string, unknown> = { tenantId, isActive: true };
-  if (filters?.brandId) filter.brand = filters.brandId;
-  if (filters?.type) filter.type = filters.type;
-  if (filters?.search) {
-    filter.$or = [
-      { name: { $regex: filters.search, $options: 'i' } },
-      { productCode: { $regex: filters.search, $options: 'i' } },
-      { type: { $regex: filters.search, $options: 'i' } },
-    ];
-  }
+  const filter = buildProductFilter(tenantId, filters);
 
   const products = await ProductModel.find(filter)
     .populate('brand', 'name')
@@ -151,6 +142,61 @@ export async function listProducts(
     .lean();
 
   return products.map((p) => serializeProduct(p as Record<string, unknown>));
+}
+
+export function buildProductFilter(
+  tenantId: Types.ObjectId,
+  filters?: { brandId?: string; type?: string; search?: string }
+) {
+  const filter: Record<string, unknown> = { tenantId, isActive: true };
+  if (filters?.brandId) filter.brand = filters.brandId;
+  if (filters?.type) filter.type = filters.type;
+  if (filters?.search?.trim()) {
+    const q = filters.search.trim();
+    filter.$or = [
+      { name: { $regex: q, $options: 'i' } },
+      { productCode: { $regex: q, $options: 'i' } },
+      { type: { $regex: q, $options: 'i' } },
+      { base: { $regex: q, $options: 'i' } },
+    ];
+  }
+  return filter;
+}
+
+export async function listProductsPaginated(
+  tenantId: Types.ObjectId,
+  options: {
+    page?: number;
+    limit?: number;
+    brandId?: string;
+    type?: string;
+    search?: string;
+  } = {}
+) {
+  const page = Math.max(1, options.page ?? 1);
+  const limit = Math.min(100, Math.max(1, options.limit ?? 20));
+  const skip = (page - 1) * limit;
+  const filter = buildProductFilter(tenantId, options);
+
+  const [products, total] = await Promise.all([
+    ProductModel.find(filter)
+      .populate('brand', 'name')
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    ProductModel.countDocuments(filter),
+  ]);
+
+  return {
+    items: products.map((p) => serializeProduct(p as Record<string, unknown>)),
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.max(1, Math.ceil(total / limit)),
+    },
+  };
 }
 
 export async function getProduct(tenantId: Types.ObjectId, productId: string) {

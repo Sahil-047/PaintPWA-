@@ -9,5 +9,7 @@ router.use(authMiddleware, tenantMiddleware);
 
 router.get('/', cashmemoController.list);
 router.post('/', cashmemoController.create);
+router.get('/:id/pdf', cashmemoController.downloadPdf);
+router.get('/:id', cashmemoController.getOne);
 
 export default router;

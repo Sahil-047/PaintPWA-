@@ -7,5 +7,6 @@ export const ROUTES = {
   BILLING: '/billing',
   INVENTORY: '/inventory',
   REPORTS: '/reports',
+  ACCOUNTS: '/accounts',
   SETTINGS: '/settings',
 } as const;

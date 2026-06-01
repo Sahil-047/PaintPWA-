@@ -1,6 +1,7 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { generateMemoNo } from '../../utils/invoice.number.js';
+import { generateCashMemoPdf } from '../../utils/pdf.generator.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { BillModel } from '../billing/billing.model.js';
 import { CashMemoModel } from './cashmemo.model.js';
@@ -46,4 +47,27 @@ export async function listCashMemos(tenantId: Types.ObjectId) {
     .populate('billId', 'billNo grandTotal')
     .populate('customerId', 'name phone')
     .sort({ paidAt: -1 });
+}
+
+export async function getCashMemo(tenantId: Types.ObjectId, memoId: string) {
+  const memo = await CashMemoModel.findOne({ _id: memoId, tenantId })
+    .populate('billId', 'billNo grandTotal')
+    .populate('customerId', 'name phone address');
+  if (!memo) throw new AppError('Cash memo not found', 404);
+  return memo;
+}
+
+export async function getCashMemoPdf(tenantId: Types.ObjectId, memoId: string) {
+  const memo = await getCashMemo(tenantId, memoId);
+  const bill = memo.billId as { billNo?: string } | null;
+  const customer = memo.customerId as { name?: string } | null;
+
+  return generateCashMemoPdf({
+    memoNo: memo.memoNo,
+    billNo: bill?.billNo ?? '—',
+    customerName: customer?.name ?? '—',
+    amountPaid: memo.amountPaid,
+    paymentMode: memo.paymentMode,
+    date: memo.paidAt.toISOString(),
+  });
 }

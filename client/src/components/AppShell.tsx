@@ -3,6 +3,7 @@ import {
   LayoutGrid,
   Package,
   Receipt,
+  Users,
   BarChart3,
   Settings,
   LogOut,
@@ -20,6 +21,7 @@ const ICON_STROKE = 2.25;
 const navItems = [
   { label: 'Dashboard', path: ROUTES.DASHBOARD, icon: LayoutGrid },
   { label: 'Invoices', path: ROUTES.BILLING, icon: Receipt },
+  { label: 'Accounts', path: ROUTES.ACCOUNTS, icon: Users },
   { label: 'Analytics', path: ROUTES.REPORTS, icon: BarChart3 },
   { label: 'Settings', path: ROUTES.SETTINGS, icon: Settings },
 ];

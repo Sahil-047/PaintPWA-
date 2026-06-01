@@ -9,6 +9,7 @@ router.use(authMiddleware, tenantMiddleware);
 
 router.get('/', billingController.list);
 router.post('/', billingController.create);
+router.get('/products', billingController.listProducts);
 router.get('/:id', billingController.getOne);
 
 export default router;

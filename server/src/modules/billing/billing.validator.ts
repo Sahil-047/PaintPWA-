@@ -13,6 +13,7 @@ export const createBillSchema = z.object({
         productId: z.string().min(1),
         qty: z.number().min(1),
         rate: z.number().min(0).optional(),
+        size: z.string().optional(),
       })
     )
     .min(1),
@@ -22,3 +23,13 @@ export const createBillSchema = z.object({
 });
 
 export type CreateBillInput = z.infer<typeof createBillSchema>;
+
+export const billingProductsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  search: z.string().optional(),
+  brandId: z.string().optional(),
+  type: z.string().optional(),
+});
+
+export type BillingProductsQuery = z.infer<typeof billingProductsQuerySchema>;

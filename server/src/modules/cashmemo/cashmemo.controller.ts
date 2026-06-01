@@ -23,3 +23,28 @@ export async function list(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function getOne(req: Request, res: Response, next: NextFunction) {
+  try {
+    const memo = await cashmemoService.getCashMemo(getTenantId(req), String(req.params.id));
+    sendSuccess(res, memo);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function downloadPdf(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tenantId = getTenantId(req);
+    const memoId = String(req.params.id);
+    const [buffer, memo] = await Promise.all([
+      cashmemoService.getCashMemoPdf(tenantId, memoId),
+      cashmemoService.getCashMemo(tenantId, memoId),
+    ]);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="${memo.memoNo}.html"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}

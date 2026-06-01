@@ -135,6 +135,27 @@ export interface Account {
   lastActivityAt: string;
 }
 
+export interface AccountWithCustomer extends Omit<Account, 'customerId'> {
+  customerId: Customer;
+}
+
+export interface BillWithPayments extends Bill {
+  amountPaid: number;
+  balanceDue: number;
+}
+
+export interface CashMemoWithRefs extends CashMemo {
+  billId: { _id: string; billNo: string; grandTotal: number } | string;
+  customerId?: Customer | string;
+}
+
+export interface CustomerDetail {
+  customer: Customer;
+  account: Account | null;
+  bills: BillWithPayments[];
+  memos: CashMemoWithRefs[];
+}
+
 // Customer
 export interface Customer {
   _id: string;

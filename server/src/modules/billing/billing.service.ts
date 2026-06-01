@@ -16,14 +16,21 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   const billItems = [];
 
   for (const item of input.items) {
-    const product = await inventoryService.deductStock(tenantId, item.productId, item.qty);
+    const product = await inventoryService.deductStock(
+      tenantId,
+      item.productId,
+      item.qty,
+      item.size
+    );
     const rate = item.rate ?? product.salePrice ?? 0;
     const total = rate * item.qty;
     subtotal += total;
+    const baseName = String((product as { name?: string }).name ?? '');
+    const productName = item.size ? `${baseName} (${item.size})` : baseName;
 
     billItems.push({
       productId: new Types.ObjectId(String((product as { _id?: unknown })._id)),
-      productName: String((product as { name?: string }).name ?? ''),
+      productName,
       qty: item.qty,
       rate,
       total,
@@ -83,6 +90,19 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   });
 
   return { bill, cashMemo, pdfBuffer };
+}
+
+export async function listBillingProducts(
+  tenantId: Types.ObjectId,
+  query: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    brandId?: string;
+    type?: string;
+  }
+) {
+  return inventoryService.listProductsPaginated(tenantId, query);
 }
 
 export async function listBills(tenantId: Types.ObjectId) {

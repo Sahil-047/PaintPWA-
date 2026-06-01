@@ -1,5 +1,19 @@
 import { axiosInstance } from './axiosInstance';
-import type { ApiResponse, Product, Brand, ProductType, Bill, Account, Expense } from '@paint-saas/shared-types';
+import type {
+  ApiResponse,
+  Product,
+  Brand,
+  ProductType,
+  Bill,
+  Account,
+  AccountWithCustomer,
+  Customer,
+  CustomerDetail,
+  CashMemo,
+  CashMemoWithRefs,
+  Expense,
+  PaginatedResponse,
+} from '@paint-saas/shared-types';
 
 interface AuthResult {
   token: string;
@@ -76,14 +90,36 @@ export const inventoryApi = {
   },
 };
 
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
 export const billingApi = {
+  listProducts: async (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    brandId?: string;
+    type?: string;
+  }) => {
+    const res = await axiosInstance.get<PaginatedResponse<Product>>('/bills/products', {
+      params,
+    });
+    return {
+      items: (res.data.data ?? []) as Product[],
+      pagination: res.data.pagination as PaginationMeta,
+    };
+  },
   list: async () => {
     const res = await axiosInstance.get<ApiResponse<Bill[]>>('/bills');
     return unwrap(res);
   },
   create: (data: {
     customer: { name: string; phone?: string; address?: string; gstin?: string };
-    items: Array<{ productId: string; qty: number; rate?: number }>;
+    items: Array<{ productId: string; qty: number; rate?: number; size?: string }>;
     discount?: number;
     amountPaid?: number;
     paymentMode?: string;
@@ -92,17 +128,61 @@ export const billingApi = {
 };
 
 export const cashmemoApi = {
-  list: () => axiosInstance.get('/cashmemos'),
-  create: (data: { billId: string; customerId: string; amountPaid: number; paymentMode?: string }) =>
-    axiosInstance.post('/cashmemos', data),
+  list: async () => {
+    const res = await axiosInstance.get<ApiResponse<CashMemoWithRefs[]>>('/cashmemos');
+    return unwrap(res);
+  },
+  create: async (data: {
+    billId: string;
+    customerId: string;
+    amountPaid: number;
+    paymentMode?: string;
+  }) => {
+    const res = await axiosInstance.post<ApiResponse<CashMemo>>('/cashmemos', data);
+    return unwrap(res);
+  },
+  openPdf: async (id: string) => {
+    const res = await axiosInstance.get(`/cashmemos/${id}/pdf`, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/html' }));
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
 };
 
 export const accountsApi = {
   list: async () => {
-    const res = await axiosInstance.get<ApiResponse<Account[]>>('/accounts');
+    const res = await axiosInstance.get<ApiResponse<AccountWithCustomer[]>>('/accounts');
     return unwrap(res);
   },
-  customers: () => axiosInstance.get('/accounts/customers'),
+  customers: async () => {
+    const res = await axiosInstance.get<ApiResponse<Customer[]>>('/accounts/customers');
+    return unwrap(res);
+  },
+  createCustomer: async (data: {
+    name: string;
+    phone?: string;
+    address?: string;
+    gstin?: string;
+  }) => {
+    const res = await axiosInstance.post<ApiResponse<Customer>>('/accounts/customers', data);
+    return unwrap(res);
+  },
+  getCustomer: async (customerId: string) => {
+    const res = await axiosInstance.get<ApiResponse<CustomerDetail>>(
+      `/accounts/customers/${customerId}`
+    );
+    return unwrap(res);
+  },
+  updateCustomer: async (
+    customerId: string,
+    data: Partial<{ name: string; phone: string; address: string; gstin: string }>
+  ) => {
+    const res = await axiosInstance.patch<ApiResponse<Customer>>(
+      `/accounts/customers/${customerId}`,
+      data
+    );
+    return unwrap(res);
+  },
 };
 
 export const expensesApi = {

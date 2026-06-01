@@ -1,6 +1,10 @@
 import { Types } from 'mongoose';
+import { AppError } from '../../utils/appError.js';
+import { BillModel } from '../billing/billing.model.js';
+import { CashMemoModel } from '../cashmemo/cashmemo.model.js';
 import { AccountModel } from './accounts.model.js';
 import { CustomerModel } from './customer.model.js';
+import type { CreateCustomerInput, UpdateCustomerInput } from './accounts.validator.js';
 
 export async function upsertCustomer(
   tenantId: Types.ObjectId,
@@ -81,4 +85,60 @@ export async function listAccounts(tenantId: Types.ObjectId) {
 
 export async function listCustomers(tenantId: Types.ObjectId) {
   return CustomerModel.find({ tenantId }).sort({ name: 1 });
+}
+
+export async function createCustomer(tenantId: Types.ObjectId, input: CreateCustomerInput) {
+  if (input.phone) {
+    const existing = await CustomerModel.findOne({ tenantId, phone: input.phone });
+    if (existing) throw new AppError('Customer with this phone already exists', 409);
+  }
+  return CustomerModel.create({ tenantId, ...input });
+}
+
+export async function updateCustomer(
+  tenantId: Types.ObjectId,
+  customerId: string,
+  input: UpdateCustomerInput
+) {
+  const customer = await CustomerModel.findOneAndUpdate(
+    { _id: customerId, tenantId },
+    { $set: input },
+    { new: true, runValidators: true }
+  );
+  if (!customer) throw new AppError('Customer not found', 404);
+  return customer;
+}
+
+export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: string) {
+  const customer = await CustomerModel.findOne({ _id: customerId, tenantId });
+  if (!customer) throw new AppError('Customer not found', 404);
+
+  const account = await AccountModel.findOne({ tenantId, customerId });
+  const bills = await BillModel.find({ tenantId, customerId }).sort({ createdAt: -1 });
+
+  const memos = await CashMemoModel.find({ tenantId, customerId })
+    .populate('billId', 'billNo grandTotal')
+    .sort({ paidAt: -1 });
+
+  const billIds = bills.map((b) => b._id);
+  const paidAgg =
+    billIds.length > 0
+      ? await CashMemoModel.aggregate([
+          { $match: { tenantId, billId: { $in: billIds } } },
+          { $group: { _id: '$billId', total: { $sum: '$amountPaid' } } },
+        ])
+      : [];
+
+  const paidMap = new Map(paidAgg.map((p) => [String(p._id), p.total as number]));
+
+  const billsWithPaid = bills.map((bill) => {
+    const amountPaid = paidMap.get(String(bill._id)) ?? 0;
+    return {
+      ...bill.toObject(),
+      amountPaid,
+      balanceDue: Math.max(0, bill.grandTotal - amountPaid),
+    };
+  });
+
+  return { customer, account, bills: billsWithPaid, memos };
 }

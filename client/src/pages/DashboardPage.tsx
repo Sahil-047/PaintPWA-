@@ -70,6 +70,7 @@ export default function DashboardPage() {
   const quickLinks = [
     { label: 'Create Invoice', path: ROUTES.BILLING, desc: 'Bill customers & deduct stock' },
     { label: 'Manage Inventory', path: ROUTES.INVENTORY, desc: 'Products, brands & stock levels' },
+    { label: 'Customer Accounts', path: ROUTES.ACCOUNTS, desc: 'Dues, payments & cash memos' },
     { label: 'View Analytics', path: ROUTES.REPORTS, desc: 'Sales, bills & business insights' },
   ];
 
