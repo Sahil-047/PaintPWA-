@@ -1,4 +1,4 @@
-export const APP_NAME = 'Paint ERP';
+export const APP_NAME = 'paintapp';
 
 export const ROUTES = {
   HOME: '/',
@@ -12,3 +12,4 @@ export const ROUTES = {
   ACCOUNTS: '/accounts',
   SETTINGS: '/settings',
 } as const;
+

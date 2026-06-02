@@ -57,6 +57,8 @@ const stats = [
 export default function Home() {
   const rootRef = useRef<HTMLDivElement>(null);
   const mouseGlowRef = useRef<HTMLDivElement>(null);
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:5173";
+  const startPilotHref = `${appBaseUrl.replace(/\/$/, "")}/signup`;
 
   useEffect(() => {
     let cleanupMouse = () => {};
@@ -131,7 +133,7 @@ export default function Home() {
         <div className="flex flex-col">
           <div className="flex items-center gap-2 text-sm font-semibold tracking-wide text-slate-200">
           <span className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_18px_2px_rgba(45,212,191,.7)]" />
-          paint-saas
+          paintsaas
           </div>
           <span className="mt-1 text-[11px] text-slate-400">A product of AsthetCSS</span>
         </div>
@@ -170,7 +172,7 @@ export default function Home() {
             transition={{ delay: 0.1, duration: 0.7 }}
             className="max-w-5xl text-4xl font-semibold leading-[1.03] tracking-[-0.03em] text-slate-50 sm:text-6xl lg:text-7xl"
           >
-            paint-saas is a premium workspace for inventory, billing, accounts, and growth analytics.
+            paintsaas is a premium workspace for inventory, billing, accounts, and growth analytics.
           </motion.h1>
 
           <motion.p
@@ -189,7 +191,7 @@ export default function Home() {
             className="mt-10 flex flex-wrap items-center gap-3"
           >
             <a
-              href="#contact"
+              href={startPilotHref}
               className="start-pilot-btn inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold"
             >
               <span className="start-pilot-shine" />
@@ -298,3 +300,4 @@ export default function Home() {
     </div>
   );
 }
+

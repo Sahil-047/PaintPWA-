@@ -11,7 +11,7 @@ async function main() {
   startReportCron();
 
   const server = app.listen(env.PORT, () => {
-    console.log(`Paint SaaS v2 running on port ${env.PORT}`);
+    console.log(`paintapp running on port ${env.PORT}`);
     console.log(`Environment: ${env.NODE_ENV}`);
   });
 
@@ -28,3 +28,4 @@ main().catch((err) => {
   console.error('Failed to start server:', err);
   process.exit(1);
 });
+

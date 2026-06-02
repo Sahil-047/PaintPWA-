@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "paint-saas",
-  description: "paint-saas — a product of AsthetCSS.",
+  title: "paintsaas",
+  description: "paintsaas — a product of AsthetCSS.",
 };
 
 export default function RootLayout({
@@ -23,3 +23,4 @@ export default function RootLayout({
     </html>
   );
 }
+

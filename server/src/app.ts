@@ -24,7 +24,7 @@ app.use(
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => {
-  res.json({ success: true, message: 'Paint SaaS v2 API', version: '2.0.0' });
+  res.json({ success: true, message: 'paintapp API', version: '2.0.0' });
 });
 
 app.use('/api/auth', authRoutes);
@@ -53,3 +53,4 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 export default app;
+
