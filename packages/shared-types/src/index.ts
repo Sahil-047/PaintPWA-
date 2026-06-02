@@ -161,7 +161,7 @@ export interface BillWithPayments extends Bill {
   balanceDue: number;
 }
 
-export interface CashMemoWithRefs extends CashMemo {
+export interface CashMemoWithRefs extends Omit<CashMemo, 'billId' | 'customerId'> {
   billId: { _id: string; billNo: string; grandTotal: number } | string;
   customerId?: Customer | string;
 }
