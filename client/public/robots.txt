@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /billing
+Disallow: /inventory
+Disallow: /reports
+Disallow: /accounts
+Disallow: /settings
+Disallow: /pending-approval
+
+Sitemap: https://paintappstore.in/sitemap.xml
