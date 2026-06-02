@@ -52,4 +52,5 @@
 body {
   background-color: hsl(var(--color-background));
   color: hsl(var(--color-foreground));
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }

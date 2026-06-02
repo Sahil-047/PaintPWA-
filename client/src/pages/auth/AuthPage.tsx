@@ -227,7 +227,18 @@ export default function AuthPage() {
     try {
       const res = await authApi.login(loginData);
       const data = res.data.data!;
-      setAuth(data.token, data.user, data.tenant);
+      if (data.isSuperAdmin) {
+        setAuth(data.token, data.user, null, true);
+        toast.success('Welcome, Super Admin');
+        navigate(ROUTES.ADMIN);
+        return;
+      }
+      setAuth(data.token, data.user, data.tenant ?? null, false);
+      if (data.tenant?.status === 'pending') {
+        toast.message('Your shop is awaiting approval');
+        navigate(ROUTES.PENDING_APPROVAL);
+        return;
+      }
       toast.success('Login successful!');
       navigate(ROUTES.DASHBOARD);
     } catch (err: unknown) {
@@ -254,9 +265,11 @@ export default function AuthPage() {
     try {
       const res = await authApi.register(signupData);
       const data = res.data.data;
-      setAuth(data.token, data.user, data.tenant);
-      toast.success('Workspace created!');
-      navigate(ROUTES.DASHBOARD);
+      if (data.pending) {
+        toast.success(data.message, { duration: 6000 });
+        navigate(ROUTES.HOME);
+        return;
+      }
     } catch (err: unknown) {
       toast.error(
         (err as { response?: { data?: { message?: string } } })?.response?.data

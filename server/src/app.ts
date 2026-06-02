@@ -11,6 +11,7 @@ import cashmemoRoutes from './modules/cashmemo/cashmemo.routes.js';
 import accountsRoutes from './modules/accounts/accounts.routes.js';
 import expensesRoutes from './modules/expenses/expenses.routes.js';
 import reportsRoutes from './modules/reports/reports.routes.js';
+import adminRoutes from './modules/admin/admin.routes.js';
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/cashmemos', cashmemoRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/expenses', expensesRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use((_req, _res, next) => {
   next(new AppError('Route not found', 404));

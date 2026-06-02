@@ -7,7 +7,8 @@ import { AppError } from '../utils/appError.js';
 
 interface JwtPayload {
   id: string;
-  tenantId: string;
+  tenantId?: string;
+  isSuperAdmin?: boolean;
 }
 
 export async function authMiddleware(
@@ -28,6 +29,26 @@ export async function authMiddleware(
     const user = await UserModel.findById(decoded.id).select('-passwordHash');
     if (!user) {
       next(new AppError('User not found', 401));
+      return;
+    }
+
+    if (decoded.isSuperAdmin || user.role === 'superadmin') {
+      if (user.role !== 'superadmin') {
+        next(new AppError('Not authorized', 401));
+        return;
+      }
+      req.user = {
+        _id: user._id as Types.ObjectId,
+        name: user.name,
+        email: user.email,
+        role: 'superadmin',
+      };
+      next();
+      return;
+    }
+
+    if (!user.tenantId) {
+      next(new AppError('Tenant context missing', 403));
       return;
     }
 

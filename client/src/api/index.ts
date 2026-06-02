@@ -13,12 +13,21 @@ import type {
   CashMemoWithRefs,
   Expense,
   PaginatedResponse,
+  TenantRegistration,
+  TenantStatus,
 } from '@paint-saas/shared-types';
 
-interface AuthResult {
+export interface AuthLoginResult {
   token: string;
   user: { _id: string; name: string; email: string; role: string };
-  tenant: { _id: string; name: string; slug: string; plan: string };
+  tenant?: { _id: string; name: string; slug: string; plan: string; status?: TenantStatus };
+  isSuperAdmin?: boolean;
+}
+
+export interface AuthRegisterResult {
+  pending: true;
+  message: string;
+  tenant: { _id: string; name: string; slug: string; plan: string; status: TenantStatus };
 }
 
 export interface DashboardStats {
@@ -40,12 +49,41 @@ export const authApi = {
     name: string;
     email: string;
     password: string;
-  }) => axiosInstance.post<{ success: boolean; data: AuthResult }>('/auth/register', data),
+  }) => axiosInstance.post<{ success: boolean; data: AuthRegisterResult }>('/auth/register', data),
 
   login: (data: { email: string; password: string }) =>
-    axiosInstance.post<ApiResponse<AuthResult>>('/auth/login', data),
+    axiosInstance.post<ApiResponse<AuthLoginResult>>('/auth/login', data),
 
-  me: () => axiosInstance.get<ApiResponse<AuthResult>>('/auth/me'),
+  me: () => axiosInstance.get<ApiResponse<AuthLoginResult>>('/auth/me'),
+};
+
+export const adminApi = {
+  listTenants: async (params?: {
+    status?: 'pending' | 'approved' | 'rejected' | 'all';
+    page?: number;
+    limit?: number;
+  }) => {
+    const res = await axiosInstance.get<PaginatedResponse<TenantRegistration>>('/admin/tenants', {
+      params,
+    });
+    return {
+      items: (res.data.data ?? []) as TenantRegistration[],
+      pagination: res.data.pagination as PaginationMeta,
+    };
+  },
+  approveTenant: async (id: string) => {
+    const res = await axiosInstance.patch<ApiResponse<TenantRegistration>>(
+      `/admin/tenants/${id}/approve`
+    );
+    return unwrap(res);
+  },
+  rejectTenant: async (id: string, reason?: string) => {
+    const res = await axiosInstance.patch<ApiResponse<TenantRegistration>>(
+      `/admin/tenants/${id}/reject`,
+      { reason }
+    );
+    return unwrap(res);
+  },
 };
 
 export const inventoryApi = {

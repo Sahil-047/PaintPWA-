@@ -13,5 +13,13 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const createSuperAdminSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(2).optional().default('Super Admin'),
+  setupSecret: z.string().min(1),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type CreateSuperAdminInput = z.infer<typeof createSuperAdminSchema>;

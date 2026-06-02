@@ -3,13 +3,28 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { sendSuccess } from '../../utils/response.helper.js';
 import * as authService from './auth.service.js';
-import { loginSchema, registerSchema } from './auth.validator.js';
+import { createSuperAdmin } from '../admin/admin.service.js';
+import { createSuperAdminSchema, loginSchema, registerSchema } from './auth.validator.js';
 
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
     const input = registerSchema.parse(req.body);
     const result = await authService.registerTenant(input);
     res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function bootstrapSuperAdmin(req: Request, res: Response, next: NextFunction) {
+  try {
+    const input = createSuperAdminSchema.parse(req.body);
+    const user = await createSuperAdmin(input);
+    res.status(201).json({
+      success: true,
+      message: 'Super admin created. Sign in with POST /api/auth/login',
+      data: user,
+    });
   } catch (err) {
     next(err);
   }

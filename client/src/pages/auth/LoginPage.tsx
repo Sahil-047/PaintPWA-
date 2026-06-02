@@ -23,7 +23,16 @@ export default function LoginPage() {
     try {
       const res = await authApi.login(formData);
       const data = res.data.data!;
-      setAuth(data.token, data.user, data.tenant);
+      if (data.isSuperAdmin) {
+        setAuth(data.token, data.user, null, true);
+        navigate(ROUTES.ADMIN);
+        return;
+      }
+      setAuth(data.token, data.user, data.tenant ?? null, false);
+      if (data.tenant?.status === 'pending') {
+        navigate(ROUTES.PENDING_APPROVAL);
+        return;
+      }
       toast.success('Login successful!');
       navigate(ROUTES.DASHBOARD);
     } catch (err: unknown) {

@@ -1,13 +1,30 @@
 // Auth & Tenant
 export type TenantPlan = 'free' | 'pro';
-export type UserRole = 'admin' | 'staff';
+export type TenantStatus = 'pending' | 'approved' | 'rejected';
+export type UserRole = 'admin' | 'staff' | 'superadmin';
 
 export interface Tenant {
   _id: string;
   name: string;
   slug: string;
   plan: TenantPlan;
+  status?: TenantStatus;
+  createdAt?: string;
+}
+
+export interface TenantRegistration {
+  _id: string;
+  name: string;
+  slug: string;
+  plan: TenantPlan;
+  status: TenantStatus;
+  rejectionReason?: string;
   createdAt: string;
+  owner?: {
+    _id: string;
+    name: string;
+    email: string;
+  };
 }
 
 export interface User {

@@ -2,9 +2,12 @@ import app from './app.js';
 import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
 import { startReportCron } from './jobs/report.cron.js';
+import { ensureSuperAdmin, migrateLegacyTenants } from './modules/admin/admin.service.js';
 
 async function main() {
   await connectDB();
+  await migrateLegacyTenants();
+  await ensureSuperAdmin();
   startReportCron();
 
   const server = app.listen(env.PORT, () => {

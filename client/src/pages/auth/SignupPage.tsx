@@ -75,9 +75,11 @@ export default function SignupPage() {
     try {
       const res = await authApi.register(formData);
       const data = res.data.data;
-      setAuth(data.token, data.user, data.tenant);
-      toast.success('Shop registered successfully!');
-      navigate(ROUTES.DASHBOARD);
+      if (data.pending) {
+        toast.success(data.message, { duration: 6000 });
+        navigate(ROUTES.HOME);
+        return;
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
