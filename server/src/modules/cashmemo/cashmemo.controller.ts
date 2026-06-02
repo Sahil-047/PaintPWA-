@@ -41,8 +41,8 @@ export async function downloadPdf(req: Request, res: Response, next: NextFunctio
       cashmemoService.getCashMemoPdf(tenantId, memoId),
       cashmemoService.getCashMemo(tenantId, memoId),
     ]);
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Content-Disposition', `inline; filename="${memo.memoNo}.html"`);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${memo.memoNo}.pdf"`);
     res.send(buffer);
   } catch (err) {
     next(err);

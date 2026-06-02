@@ -50,3 +50,19 @@ export async function getOne(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function downloadPdf(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tenantId = getTenantId(req);
+    const billId = String(req.params.id);
+    const [buffer, bill] = await Promise.all([
+      billingService.getBillPdf(tenantId, billId),
+      billingService.getBill(tenantId, billId),
+    ]);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${bill.billNo}.pdf"`);
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}

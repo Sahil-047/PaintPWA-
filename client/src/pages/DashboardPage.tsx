@@ -12,8 +12,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     totalSales: 0,
+    netSales: 0,
+    totalReturns: 0,
     totalCollected: 0,
     totalDue: 0,
+    totalCreditLiability: 0,
     totalExpenses: 0,
   });
   const [totalStock, setTotalStock] = useState(0);
@@ -38,18 +41,25 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      title: 'Total Sales',
-      value: formatCurrency(stats.totalSales),
+      title: 'Net Sales',
+      value: formatCurrency(stats.netSales ?? stats.totalSales),
       icon: DollarSign,
       iconBg: 'bg-emerald-50',
       iconColor: 'text-emerald-600',
     },
     {
-      title: 'Collected',
+      title: 'Cash Collected',
       value: formatCurrency(stats.totalCollected),
       icon: TrendingUp,
       iconBg: 'bg-blue-50',
       iconColor: 'text-blue-600',
+    },
+    {
+      title: 'Collected Against Sales',
+      value: formatCurrency(Math.max(0, stats.totalCollected - stats.totalCreditLiability)),
+      icon: TrendingUp,
+      iconBg: 'bg-cyan-50',
+      iconColor: 'text-cyan-700',
     },
     {
       title: 'Outstanding Due',
@@ -81,7 +91,10 @@ export default function DashboardPage() {
         description="Overview of your shop — sales, collections, stock, and outstanding dues."
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+      <p className="text-xs text-slate-500 mb-3">
+        `Cash Collected` can be higher than sales when customers have advance credit.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (

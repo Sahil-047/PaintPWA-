@@ -15,6 +15,7 @@ import type {
   PaginatedResponse,
   TenantRegistration,
   TenantStatus,
+  ReturnItem,
 } from '@paint-saas/shared-types';
 
 export interface AuthLoginResult {
@@ -32,8 +33,12 @@ export interface AuthRegisterResult {
 
 export interface DashboardStats {
   totalSales: number;
+  netSales: number;
+  grossSales: number;
+  totalReturns: number;
   totalCollected: number;
   totalDue: number;
+  totalCreditLiability: number;
   totalExpenses: number;
   topProducts: Array<{ productId: string; name: string; qty: number; revenue: number }>;
 }
@@ -163,6 +168,20 @@ export const billingApi = {
     paymentMode?: string;
   }) => axiosInstance.post('/bills', data),
   get: (id: string) => axiosInstance.get(`/bills/${id}`),
+  openPdf: async (id: string, fileName?: string) => {
+    const res = await axiosInstance.get(`/bills/${id}/pdf`, { responseType: 'blob' });
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+    const win = window.open(url, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${fileName ?? 'invoice'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
 };
 
 export const cashmemoApi = {
@@ -181,7 +200,7 @@ export const cashmemoApi = {
   },
   openPdf: async (id: string) => {
     const res = await axiosInstance.get(`/cashmemos/${id}/pdf`, { responseType: 'blob' });
-    const url = URL.createObjectURL(new Blob([res.data], { type: 'text/html' }));
+    const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
     window.open(url, '_blank');
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
@@ -219,6 +238,23 @@ export const accountsApi = {
       `/accounts/customers/${customerId}`,
       data
     );
+    return unwrap(res);
+  },
+};
+
+export const returnsApi = {
+  list: async (params?: { customerId?: string; billId?: string }) => {
+    const res = await axiosInstance.get<ApiResponse<ReturnItem[]>>('/returns', { params });
+    return unwrap(res);
+  },
+  create: async (data: {
+    customerId: string;
+    billId: string;
+    productId: string;
+    qty: number;
+    reason?: string;
+  }) => {
+    const res = await axiosInstance.post<ApiResponse<ReturnItem>>('/returns', data);
     return unwrap(res);
   },
 };

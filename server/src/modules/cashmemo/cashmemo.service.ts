@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { generateMemoNo } from '../../utils/invoice.number.js';
 import { generateCashMemoPdf } from '../../utils/pdf.generator.js';
+import { buildPdfKey, readPdfByKey, savePdfByKey } from '../../utils/pdf.storage.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { BillModel } from '../billing/billing.model.js';
 import { CashMemoModel } from './cashmemo.model.js';
@@ -59,15 +60,31 @@ export async function getCashMemo(tenantId: Types.ObjectId, memoId: string) {
 
 export async function getCashMemoPdf(tenantId: Types.ObjectId, memoId: string) {
   const memo = await getCashMemo(tenantId, memoId);
+  if (memo.pdfUrl) {
+    const cached = await readPdfByKey(memo.pdfUrl);
+    if (cached) return cached;
+  }
+
   const bill = memo.billId as { billNo?: string } | null;
   const customer = memo.customerId as { name?: string } | null;
 
-  return generateCashMemoPdf({
+  const pdfBuffer = await generateCashMemoPdf({
     memoNo: memo.memoNo,
+    firmName: 'paintapp',
     billNo: bill?.billNo ?? '—',
     customerName: customer?.name ?? '—',
     amountPaid: memo.amountPaid,
     paymentMode: memo.paymentMode,
+    chequeNo: undefined,
     date: memo.paidAt.toISOString(),
   });
+
+  const pdfKey = memo.pdfUrl ?? buildPdfKey(String(tenantId), 'cashmemo', memo.memoNo);
+  await savePdfByKey(pdfKey, pdfBuffer);
+  if (!memo.pdfUrl) {
+    memo.pdfUrl = pdfKey;
+    await memo.save();
+  }
+
+  return pdfBuffer;
 }

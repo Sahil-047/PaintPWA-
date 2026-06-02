@@ -147,6 +147,7 @@ export interface Account {
   totalBilled: number;
   totalPaid: number;
   dueBalance: number;
+  creditBalance: number;
   bills: string[];
   memos: string[];
   lastActivityAt: string;
@@ -159,6 +160,7 @@ export interface AccountWithCustomer extends Omit<Account, 'customerId'> {
 export interface BillWithPayments extends Bill {
   amountPaid: number;
   balanceDue: number;
+  billCredit?: number;
 }
 
 export interface CashMemoWithRefs extends Omit<CashMemo, 'billId' | 'customerId'> {
@@ -171,6 +173,21 @@ export interface CustomerDetail {
   account: Account | null;
   bills: BillWithPayments[];
   memos: CashMemoWithRefs[];
+}
+
+export interface ReturnItem {
+  _id: string;
+  tenantId: string;
+  customerId: string | { _id: string; name: string };
+  billId: string | { _id: string; billNo: string };
+  productId: string;
+  productName: string;
+  qty: number;
+  rate: number;
+  amount: number;
+  creditIssued?: number;
+  reason?: string;
+  createdAt: string;
 }
 
 // Customer

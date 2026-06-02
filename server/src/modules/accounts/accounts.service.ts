@@ -2,7 +2,8 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { BillModel } from '../billing/billing.model.js';
 import { CashMemoModel } from '../cashmemo/cashmemo.model.js';
-import { AccountModel } from './accounts.model.js';
+import { syncAccountLedger } from './account-ledger.js';
+import { AccountModel, type IAccount } from './accounts.model.js';
 import { CustomerModel } from './customer.model.js';
 import type { CreateCustomerInput, UpdateCustomerInput } from './accounts.validator.js';
 
@@ -24,10 +25,24 @@ export async function recalcDue(
   const account = await AccountModel.findOne({ tenantId, customerId });
   if (!account) return null;
 
-  account.dueBalance = account.totalBilled - account.totalPaid;
-  account.lastActivityAt = new Date();
+  syncAccountLedger(account);
   await account.save();
   return account;
+}
+
+export async function applyCustomerCredit(
+  tenantId: Types.ObjectId,
+  customerId: Types.ObjectId,
+  maxAmount: number
+): Promise<number> {
+  const account = await AccountModel.findOne({ tenantId, customerId });
+  if (!account || account.creditBalance <= 0 || maxAmount <= 0) return 0;
+
+  const applied = Math.min(account.creditBalance, maxAmount);
+  account.creditBalance = Number((account.creditBalance - applied).toFixed(2));
+  syncAccountLedger(account);
+  await account.save();
+  return applied;
 }
 
 export async function addBillToAccount(
@@ -35,29 +50,31 @@ export async function addBillToAccount(
   customerId: Types.ObjectId,
   billId: Types.ObjectId,
   grandTotal: number
-) {
+): Promise<{ account: IAccount; creditApplied: number }> {
   let account = await AccountModel.findOne({ tenantId, customerId });
 
   if (!account) {
-    account = await AccountModel.create({
+    const created = await AccountModel.create({
       tenantId,
       customerId,
       totalBilled: grandTotal,
       totalPaid: 0,
       dueBalance: grandTotal,
+      creditBalance: 0,
       bills: [billId],
       memos: [],
       lastActivityAt: new Date(),
     });
-    return account;
+    return { account: created, creditApplied: 0 };
   }
 
+  const creditBefore = account.creditBalance;
   account.totalBilled += grandTotal;
   account.bills.push(billId);
-  account.dueBalance = account.totalBilled - account.totalPaid;
-  account.lastActivityAt = new Date();
+  syncAccountLedger(account);
   await account.save();
-  return account;
+  const creditApplied = Number(Math.max(0, creditBefore - account.creditBalance).toFixed(2));
+  return { account, creditApplied };
 }
 
 export async function addPaymentToAccount(
@@ -71,8 +88,7 @@ export async function addPaymentToAccount(
 
   account.totalPaid += amountPaid;
   account.memos.push(memoId);
-  account.dueBalance = account.totalBilled - account.totalPaid;
-  account.lastActivityAt = new Date();
+  syncAccountLedger(account);
   await account.save();
   return account;
 }
@@ -137,6 +153,7 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
       ...bill.toObject(),
       amountPaid,
       balanceDue: Math.max(0, bill.grandTotal - amountPaid),
+      billCredit: Math.max(0, amountPaid - bill.grandTotal),
     };
   });
 

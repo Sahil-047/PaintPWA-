@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { generateBillNo } from '../../utils/invoice.number.js';
 import { generateBillPdf } from '../../utils/pdf.generator.js';
+import { buildPdfKey, readPdfByKey, savePdfByKey } from '../../utils/pdf.storage.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { CustomerModel } from '../accounts/customer.model.js';
 import * as cashmemoService from '../cashmemo/cashmemo.service.js';
@@ -39,11 +40,8 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
 
   const discount = input.discount ?? 0;
   const grandTotal = Math.max(0, subtotal - discount);
-  const amountPaid = input.amountPaid ?? 0;
 
-  let status: 'paid' | 'partial' | 'due' = 'due';
-  if (amountPaid >= grandTotal) status = 'paid';
-  else if (amountPaid > 0) status = 'partial';
+  const amountPaid = input.amountPaid ?? 0;
 
   const bill = await BillModel.create({
     tenantId,
@@ -53,10 +51,10 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     subtotal,
     discount,
     grandTotal,
-    status,
+    status: 'due',
   });
 
-  await accountsService.addBillToAccount(
+  const { creditApplied } = await accountsService.addBillToAccount(
     tenantId,
     customer._id as Types.ObjectId,
     bill._id as Types.ObjectId,
@@ -73,10 +71,24 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     });
   }
 
+  const totalSettled = creditApplied + amountPaid;
+  if (totalSettled >= grandTotal) bill.status = 'paid';
+  else if (totalSettled > 0) bill.status = 'partial';
+  else bill.status = 'due';
+  await bill.save();
+
   const customerDoc = await CustomerModel.findById(customer._id);
+  const gstRate = 18;
+  const gstAmount = 0;
   const pdfBuffer = await generateBillPdf({
     billNo: bill.billNo,
+    firmName: 'paintapp',
+    billedByName: 'paintapp',
+    billedByEmail: 'hello@asthetcss.com',
+    billedByAddress: 'Business Address',
     customerName: customerDoc?.name ?? input.customer.name,
+    customerEmail: undefined,
+    customerAddress: input.customer.address ?? customerDoc?.address ?? undefined,
     items: billItems.map((i) => ({
       name: i.productName,
       qty: i.qty,
@@ -84,12 +96,20 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
       total: i.total,
     })),
     subtotal,
+    gstRate,
+    gstAmount,
     discount,
     grandTotal,
     date: new Date().toISOString(),
+    dueDate: new Date().toISOString(),
   });
 
-  return { bill, cashMemo, pdfBuffer };
+  const pdfKey = buildPdfKey(String(tenantId), 'bill', bill.billNo);
+  await savePdfByKey(pdfKey, pdfBuffer);
+  bill.pdfUrl = pdfKey;
+  await bill.save();
+
+  return { bill, cashMemo, pdfBuffer, creditApplied };
 }
 
 export async function listBillingProducts(
@@ -118,4 +138,47 @@ export async function getBill(tenantId: Types.ObjectId, billId: string) {
   );
   if (!bill) throw new AppError('Bill not found', 404);
   return bill;
+}
+
+export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
+  const bill = await getBill(tenantId, billId);
+  if (bill.pdfUrl) {
+    const cached = await readPdfByKey(bill.pdfUrl);
+    if (cached) return cached;
+  }
+
+  const customer = bill.customerId as { name?: string; address?: string } | null;
+  const gstRate = 18;
+  const gstAmount = 0;
+  const createdAtIso = new Date().toISOString();
+  const buffer = await generateBillPdf({
+    billNo: bill.billNo,
+    firmName: 'paintapp',
+    billedByName: 'paintapp',
+    billedByEmail: 'hello@asthetcss.com',
+    billedByAddress: 'Business Address',
+    customerName: customer?.name ?? 'Customer',
+    customerAddress: customer?.address,
+    items: bill.items.map((i) => ({
+      name: i.productName,
+      qty: i.qty,
+      rate: i.rate,
+      total: i.total,
+    })),
+    subtotal: bill.subtotal,
+    gstRate,
+    gstAmount,
+    discount: bill.discount,
+    grandTotal: bill.grandTotal,
+    date: createdAtIso,
+    dueDate: createdAtIso,
+  });
+
+  const key = bill.pdfUrl ?? buildPdfKey(String(tenantId), 'bill', bill.billNo);
+  await savePdfByKey(key, buffer);
+  if (!bill.pdfUrl) {
+    bill.pdfUrl = key;
+    await bill.save();
+  }
+  return buffer;
 }

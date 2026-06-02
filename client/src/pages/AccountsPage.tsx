@@ -4,6 +4,7 @@ import {
   Plus,
   Loader2,
   Download,
+  RotateCcw,
   Phone,
   MapPin,
   Receipt,
@@ -12,7 +13,7 @@ import {
   Wallet,
   FileText,
   ChevronRight,
-  Save,
+  Pencil,
   Banknote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,11 +44,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { accountsApi, cashmemoApi } from '@/api';
+import { accountsApi, cashmemoApi, returnsApi } from '@/api';
 import type {
   AccountWithCustomer,
   BillWithPayments,
   CustomerDetail,
+  ReturnItem,
 } from '@paint-saas/shared-types';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -154,6 +156,7 @@ export default function AccountsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [editForm, setEditForm] = useState(emptyCustomerForm);
   const [saving, setSaving] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState(emptyCustomerForm);
@@ -164,6 +167,13 @@ export default function AccountsPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState('cash');
   const [paying, setPaying] = useState(false);
+  const [returns, setReturns] = useState<ReturnItem[]>([]);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnBillId, setReturnBillId] = useState('');
+  const [returnProductId, setReturnProductId] = useState('');
+  const [returnQty, setReturnQty] = useState('');
+  const [returnReason, setReturnReason] = useState('');
+  const [returning, setReturning] = useState(false);
 
   const loadAccounts = useCallback(async () => {
     setLoading(true);
@@ -204,6 +214,21 @@ export default function AccountsPage() {
     else setDetail(null);
   }, [selectedId, loadDetail]);
 
+  useEffect(() => {
+    async function loadReturns() {
+      if (!selectedId) {
+        setReturns([]);
+        return;
+      }
+      try {
+        setReturns(await returnsApi.list({ customerId: selectedId }));
+      } catch {
+        setReturns([]);
+      }
+    }
+    loadReturns();
+  }, [selectedId]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return accounts;
@@ -237,6 +262,8 @@ export default function AccountsPage() {
   );
 
   const selectedAccount = accounts.find((a) => a.customerId._id === selectedId);
+  const selectedReturnBill = detail?.bills.find((b) => b._id === returnBillId);
+  const selectedReturnLine = selectedReturnBill?.items.find((i) => String(i.productId) === returnProductId);
 
   async function handleSaveCustomer() {
     if (!selectedId) return;
@@ -244,6 +271,7 @@ export default function AccountsPage() {
     try {
       await accountsApi.updateCustomer(selectedId, editForm);
       toast.success('Profile saved');
+      setEditOpen(false);
       await Promise.all([loadAccounts(), loadDetail(selectedId)]);
     } catch {
       toast.error('Failed to update customer');
@@ -310,6 +338,61 @@ export default function AccountsPage() {
       toast.error('Failed to record payment');
     } finally {
       setPaying(false);
+    }
+  }
+
+  function openReturnDialog(bill?: BillWithPayments) {
+    const targetBill = bill ?? detail?.bills?.[0];
+    const defaultProduct = targetBill?.items?.[0];
+    setReturnBillId(targetBill?._id ?? '');
+    setReturnProductId(defaultProduct ? String(defaultProduct.productId) : '');
+    setReturnQty('');
+    setReturnReason('');
+    setReturnOpen(true);
+  }
+
+  async function handleCreateReturn() {
+    if (!selectedId || !returnBillId || !returnProductId || !returnQty) {
+      toast.error('Select bill, item and quantity');
+      return;
+    }
+    const qty = Number(returnQty);
+    if (!qty || qty <= 0) {
+      toast.error('Enter valid return quantity');
+      return;
+    }
+    if (selectedReturnLine && qty > selectedReturnLine.qty) {
+      toast.error(`Max return quantity: ${selectedReturnLine.qty}`);
+      return;
+    }
+
+    setReturning(true);
+    try {
+      const res = await returnsApi.create({
+        customerId: selectedId,
+        billId: returnBillId,
+        productId: returnProductId,
+        qty,
+        reason: returnReason.trim() || undefined,
+      });
+      const creditMsg =
+        res.creditIssued && res.creditIssued > 0
+          ? ` · ${formatCurrency(res.creditIssued)} added to store credit`
+          : '';
+      toast.success(`Return recorded${creditMsg}`);
+      setReturnOpen(false);
+      await Promise.all([
+        loadAccounts(),
+        loadDetail(selectedId),
+        returnsApi.list({ customerId: selectedId }).then(setReturns),
+      ]);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Failed to record return';
+      toast.error(msg);
+    } finally {
+      setReturning(false);
     }
   }
 
@@ -477,7 +560,15 @@ export default function AccountsPage() {
                         <CustomerAvatar name={detail.customer.name} size="lg" />
                         <div className="min-w-0">
                           <h2 className="text-2xl font-semibold text-slate-900 truncate">
-                            {detail.customer.name}
+                            <span>{detail.customer.name}</span>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="ml-2 h-7 w-7 align-middle"
+                              onClick={() => setEditOpen(true)}
+                            >
+                              <Pencil className="h-4 w-4 text-slate-500" />
+                            </Button>
                           </h2>
                           <p className="text-sm text-slate-500 mt-1">
                             Member since {formatDate(detail.customer.createdAt)}
@@ -500,20 +591,6 @@ export default function AccountsPage() {
                       </div>
                       <div className="flex flex-wrap gap-2 shrink-0">
                         <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleSaveCustomer}
-                          disabled={saving}
-                          className="h-10 rounded-xl gap-2 border-slate-200 bg-white shadow-sm"
-                        >
-                          {saving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Save className="h-4 w-4" />
-                          )}
-                          Save profile
-                        </Button>
-                        <Button
                           size="sm"
                           onClick={() => openPaymentDialog()}
                           disabled={unpaidBills.length === 0}
@@ -527,7 +604,7 @@ export default function AccountsPage() {
                   </div>
 
                   <CardContent className="p-5">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <LedgerStat
                         label="Total billed"
                         value={formatCurrency(detail.account?.totalBilled ?? 0)}
@@ -541,77 +618,43 @@ export default function AccountsPage() {
                         value={formatCurrency(detail.account?.dueBalance ?? 0)}
                         highlight={(detail.account?.dueBalance ?? 0) > 0}
                       />
+                      <LedgerStat
+                        label="Store credit"
+                        value={formatCurrency(detail.account?.creditBalance ?? 0)}
+                        highlight={(detail.account?.creditBalance ?? 0) > 0}
+                      />
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Profile + activity */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 flex-1 min-h-0">
-                  <Card className={cn('lg:col-span-2 py-0 gap-0 h-fit lg:sticky lg:top-6', cardClass)}>
-                    <div className="px-5 py-4 border-b border-slate-100">
-                      <h3 className="text-sm font-semibold text-slate-900">Contact details</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Editable customer profile</p>
-                    </div>
-                    <CardContent className="p-5 space-y-4">
-                      <div>
-                        <Label className="text-xs text-slate-500">Full name</Label>
-                        <Input
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                          className={cn(inputClass, 'mt-1.5')}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-slate-500">Phone</Label>
-                        <Input
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                          className={cn(inputClass, 'mt-1.5')}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-slate-500">Address</Label>
-                        <Input
-                          value={editForm.address}
-                          onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                          className={cn(inputClass, 'mt-1.5')}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs text-slate-500">GSTIN</Label>
-                        <Input
-                          value={editForm.gstin}
-                          onChange={(e) => setEditForm({ ...editForm, gstin: e.target.value })}
-                          className={cn(inputClass, 'mt-1.5')}
-                        />
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card className={cn('lg:col-span-3 py-0 gap-0 flex flex-col min-h-[360px]', cardClass)}>
+                {/* Activity */}
+                <div className="flex-1 min-h-0">
+                  <Card className={cn('py-0 gap-0 flex flex-col min-h-[360px]', cardClass)}>
                     <Tabs defaultValue="bills" className="flex flex-col flex-1 min-h-0">
-                      <div className="px-5 pt-4 pb-0 flex items-center justify-between border-b border-slate-100">
-                        <TabsList className="bg-slate-100/80 p-1 rounded-xl h-10">
+                      <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-slate-100">
+                        <TabsList className="bg-slate-100/80 p-1 rounded-xl h-auto w-full grid grid-cols-3">
                           <TabsTrigger
                             value="bills"
-                            className="rounded-lg px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                            className="rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm text-center data-[state=active]:bg-white data-[state=active]:shadow-sm"
                           >
                             <Receipt className="h-3.5 w-3.5 mr-1.5 inline" />
                             Bills ({detail.bills.length})
                           </TabsTrigger>
                           <TabsTrigger
                             value="payments"
-                            className="rounded-lg px-4 text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                            className="rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm text-center data-[state=active]:bg-white data-[state=active]:shadow-sm"
                           >
                             <Wallet className="h-3.5 w-3.5 mr-1.5 inline" />
                             Payments ({detail.memos.length})
                           </TabsTrigger>
+                          <TabsTrigger
+                            value="returns"
+                            className="rounded-lg px-3 sm:px-4 py-1.5 text-xs sm:text-sm text-center data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 mr-1.5 inline" />
+                            Returns ({returns.length})
+                          </TabsTrigger>
                         </TabsList>
-                        {selectedAccount && selectedAccount.dueBalance > 0 && (
-                          <span className="hidden sm:inline text-xs text-slate-500">
-                            {formatCurrency(selectedAccount.dueBalance)} outstanding
-                          </span>
-                        )}
                       </div>
 
                       <TabsContent
@@ -668,16 +711,26 @@ export default function AccountsPage() {
                                       <StatusBadge status={bill.status} />
                                     </TableCell>
                                     <TableCell>
-                                      {bill.balanceDue > 0 && (
+                                      <div className="flex gap-1.5">
+                                        {bill.balanceDue > 0 && (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => openPaymentDialog(bill)}
+                                            className="h-8 rounded-lg text-xs border-[#bfdbfe] text-[#2563eb] hover:bg-[#eff6ff]"
+                                          >
+                                            Pay
+                                          </Button>
+                                        )}
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          onClick={() => openPaymentDialog(bill)}
-                                          className="h-8 rounded-lg text-xs border-[#bfdbfe] text-[#2563eb] hover:bg-[#eff6ff]"
+                                          onClick={() => openReturnDialog(bill)}
+                                          className="h-8 rounded-lg text-xs"
                                         >
-                                          Pay
+                                          Return
                                         </Button>
-                                      )}
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 ))}
@@ -747,8 +800,71 @@ export default function AccountsPage() {
                                           onClick={() => cashmemoApi.openPdf(memo._id)}
                                         >
                                           <Download className="h-3.5 w-3.5" />
-                                          Memo
+                                          PDF
                                         </Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent
+                        value="returns"
+                        className="flex-1 overflow-auto p-4 m-0 data-[state=inactive]:hidden"
+                      >
+                        <div className="mb-3 flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-lg text-xs gap-1.5"
+                            onClick={() => openReturnDialog()}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            New return
+                          </Button>
+                        </div>
+                        {returns.length === 0 ? (
+                          <div className="py-14 text-center">
+                            <RotateCcw className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+                            <p className="text-sm text-slate-500">No returns yet</p>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-slate-100 overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow className="bg-slate-50/80 hover:bg-slate-50/80">
+                                  <TableHead className="text-xs font-semibold text-slate-600">Date</TableHead>
+                                  <TableHead className="text-xs font-semibold text-slate-600">Bill</TableHead>
+                                  <TableHead className="text-xs font-semibold text-slate-600">Item</TableHead>
+                                  <TableHead className="text-xs font-semibold text-slate-600 text-right">Qty</TableHead>
+                                  <TableHead className="text-xs font-semibold text-slate-600 text-right">Amount</TableHead>
+                                  <TableHead className="text-xs font-semibold text-slate-600 text-right">Credit</TableHead>
+                                  <TableHead className="text-xs font-semibold text-slate-600">Reason</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {returns.map((r) => {
+                                  const bill = typeof r.billId === 'object' && r.billId ? r.billId.billNo : '—';
+                                  return (
+                                    <TableRow key={r._id} className="hover:bg-[#f8fafc] transition-colors">
+                                      <TableCell className="text-slate-500 text-sm">
+                                        {formatDate(r.createdAt)}
+                                      </TableCell>
+                                      <TableCell className="font-medium text-slate-900">{bill}</TableCell>
+                                      <TableCell className="text-slate-600 text-sm">{r.productName}</TableCell>
+                                      <TableCell className="text-right tabular-nums">{r.qty}</TableCell>
+                                      <TableCell className="text-right tabular-nums font-medium">
+                                        {formatCurrency(r.amount)}
+                                      </TableCell>
+                                      <TableCell className="text-right tabular-nums text-violet-700 text-sm">
+                                        {(r.creditIssued ?? 0) > 0 ? formatCurrency(r.creditIssued!) : '—'}
+                                      </TableCell>
+                                      <TableCell className="text-slate-500 text-sm">
+                                        {r.reason || '—'}
                                       </TableCell>
                                     </TableRow>
                                   );
@@ -797,6 +913,138 @@ export default function AccountsPage() {
               className={cn('rounded-xl', btnPrimary)}
             >
               {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create customer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit customer details</DialogTitle>
+            <DialogDescription>Update customer profile information.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div>
+              <Label className="text-slate-600">Full name</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className={cn(inputClass, 'mt-1.5')}
+              />
+            </div>
+            <div>
+              <Label className="text-slate-600">Phone</Label>
+              <Input
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className={cn(inputClass, 'mt-1.5')}
+              />
+            </div>
+            <div>
+              <Label className="text-slate-600">Address</Label>
+              <Input
+                value={editForm.address}
+                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                className={cn(inputClass, 'mt-1.5')}
+              />
+            </div>
+            <div>
+              <Label className="text-slate-600">GSTIN</Label>
+              <Input
+                value={editForm.gstin}
+                onChange={(e) => setEditForm({ ...editForm, gstin: e.target.value })}
+                className={cn(inputClass, 'mt-1.5')}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveCustomer} disabled={saving} className={cn('rounded-xl', btnPrimary)}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save profile'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={returnOpen} onOpenChange={setReturnOpen}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Return items</DialogTitle>
+            <DialogDescription>
+              Record customer item return against bill and line item.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div>
+              <Label className="text-slate-600">Bill</Label>
+              <Select
+                value={returnBillId}
+                onValueChange={(val) => {
+                  setReturnBillId(val);
+                  const b = detail?.bills.find((x) => x._id === val);
+                  setReturnProductId(b?.items?.[0] ? String(b.items[0].productId) : '');
+                }}
+              >
+                <SelectTrigger className={cn(inputClass, 'mt-1.5 w-full')}>
+                  <SelectValue placeholder="Select bill" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(detail?.bills ?? []).map((bill) => (
+                    <SelectItem key={bill._id} value={bill._id}>
+                      {bill.billNo} — {formatCurrency(bill.grandTotal)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-slate-600">Product line</Label>
+              <Select value={returnProductId} onValueChange={setReturnProductId}>
+                <SelectTrigger className={cn(inputClass, 'mt-1.5 w-full')}>
+                  <SelectValue placeholder="Select item" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(selectedReturnBill?.items ?? []).map((item) => (
+                    <SelectItem key={`${String(item.productId)}-${item.productName}`} value={String(item.productId)}>
+                      {item.productName} (qty: {item.qty})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-slate-600">Quantity to return</Label>
+              <Input
+                type="number"
+                min={0}
+                step={1}
+                value={returnQty}
+                onChange={(e) => setReturnQty(e.target.value)}
+                className={cn(inputClass, 'mt-1.5')}
+              />
+            </div>
+            <div>
+              <Label className="text-slate-600">Reason (optional)</Label>
+              <Input
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                className={cn(inputClass, 'mt-1.5')}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReturnOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateReturn}
+              disabled={returning}
+              className={cn('rounded-xl gap-2', btnPrimary)}
+            >
+              {returning ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save return'}
             </Button>
           </DialogFooter>
         </DialogContent>

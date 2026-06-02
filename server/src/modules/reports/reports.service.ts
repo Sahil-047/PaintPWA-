@@ -3,6 +3,7 @@ import { AccountModel } from '../accounts/accounts.model.js';
 import { BillModel } from '../billing/billing.model.js';
 import { CashMemoModel } from '../cashmemo/cashmemo.model.js';
 import { ExpenseModel } from '../expenses/expenses.model.js';
+import { ReturnItemModel } from '../returns/returns.model.js';
 import { ReportSnapshotModel } from './reports.model.js';
 
 function getMonthRange(period: string) {
@@ -13,7 +14,8 @@ function getMonthRange(period: string) {
 }
 
 export async function getLiveDashboard(tenantId: Types.ObjectId) {
-  const [salesAgg, collectedAgg, dueAgg, expenseAgg, topProducts] = await Promise.all([
+  const [salesAgg, collectedAgg, dueAgg, creditAgg, returnsAgg, expenseAgg, topProducts] =
+    await Promise.all([
     BillModel.aggregate([
       { $match: { tenantId } },
       { $group: { _id: null, total: { $sum: '$grandTotal' } } },
@@ -25,6 +27,14 @@ export async function getLiveDashboard(tenantId: Types.ObjectId) {
     AccountModel.aggregate([
       { $match: { tenantId } },
       { $group: { _id: null, total: { $sum: '$dueBalance' } } },
+    ]),
+    AccountModel.aggregate([
+      { $match: { tenantId } },
+      { $group: { _id: null, total: { $sum: '$creditBalance' } } },
+    ]),
+    ReturnItemModel.aggregate([
+      { $match: { tenantId } },
+      { $group: { _id: null, total: { $sum: '$amount' } } },
     ]),
     ExpenseModel.aggregate([
       { $match: { tenantId } },
@@ -46,10 +56,17 @@ export async function getLiveDashboard(tenantId: Types.ObjectId) {
     ]),
   ]);
 
+  const netSales = salesAgg[0]?.total ?? 0;
+  const totalReturns = returnsAgg[0]?.total ?? 0;
+
   return {
-    totalSales: salesAgg[0]?.total ?? 0,
+    totalSales: netSales,
+    netSales,
+    grossSales: netSales + totalReturns,
+    totalReturns,
     totalCollected: collectedAgg[0]?.total ?? 0,
     totalDue: dueAgg[0]?.total ?? 0,
+    totalCreditLiability: creditAgg[0]?.total ?? 0,
     totalExpenses: expenseAgg[0]?.total ?? 0,
     topProducts: topProducts.map((p) => ({
       productId: p._id?.toString(),
