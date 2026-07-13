@@ -12,6 +12,7 @@ import BillingPage from '@/pages/BillingPage';
 import InventoryPage from '@/pages/InventoryPage';
 import ReportsPage from '@/pages/ReportsPage';
 import AccountsPage from '@/pages/AccountsPage';
+import CustomerDetailsPage from '@/pages/CustomerDetailsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import SeoHead from '@/components/SeoHead';
 
@@ -70,11 +71,19 @@ const SEO_CONFIG: Record<string, { title: string; description: string; robots?: 
 
 function AppSeo() {
   const location = useLocation();
-  const seo = SEO_CONFIG[location.pathname] ?? {
-    title: 'Paint ERP',
-    description: 'Paint ERP for inventory, billing, and customer account management.',
-    robots: 'noindex, nofollow',
-  };
+  const seo = SEO_CONFIG[location.pathname] ?? (
+    location.pathname.startsWith('/accounts/') && location.pathname !== '/accounts'
+      ? {
+          title: 'Customer Details',
+          description: 'View customer ledger, invoices, and payments in Paint ERP.',
+          robots: 'noindex, nofollow',
+        }
+      : {
+          title: 'Paint ERP',
+          description: 'Paint ERP for inventory, billing, and customer account management.',
+          robots: 'noindex, nofollow',
+        }
+  );
 
   return (
     <SeoHead
@@ -108,6 +117,7 @@ export default function App() {
             <Route path={ROUTES.INVENTORY} element={<InventoryPage />} />
             <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
             <Route path={ROUTES.ACCOUNTS} element={<AccountsPage />} />
+            <Route path={ROUTES.ACCOUNT_DETAIL} element={<CustomerDetailsPage />} />
             <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
           </Route>
         </Route>

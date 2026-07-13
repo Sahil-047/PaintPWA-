@@ -10,6 +10,11 @@ export const ROUTES = {
   INVENTORY: '/inventory',
   REPORTS: '/reports',
   ACCOUNTS: '/accounts',
+  ACCOUNT_DETAIL: '/accounts/:customerId',
   SETTINGS: '/settings',
 } as const;
+
+export function accountDetailPath(customerId: string) {
+  return `/accounts/${customerId}`;
+}
 

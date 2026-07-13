@@ -47,7 +47,7 @@ export default function AppShell() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--brand-space)] flex">
+    <div className="h-screen bg-[var(--brand-space)] flex overflow-hidden">
       <aside className="w-[240px] shrink-0 bg-white border-r border-[var(--brand-secondary)]/35 flex flex-col py-7 px-5">
         <div className="flex items-center gap-3 px-1 mb-10">
           <LogoCube />
@@ -109,8 +109,10 @@ export default function AppShell() {
         </div>
       </aside>
 
-      <main className="flex-1 min-w-0 overflow-auto bg-[var(--brand-space)]">
-        <Outlet />
+      <main className="flex-1 min-w-0 min-h-0 h-full overflow-hidden bg-[var(--brand-space)] flex flex-col">
+        <div className="flex-1 min-h-0 h-full overflow-auto">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
