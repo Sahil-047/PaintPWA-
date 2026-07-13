@@ -39,7 +39,6 @@ import {
   parseInventoryHash,
   productSearchMatch,
   type DeleteTarget,
-  type InventoryHash,
 } from '@/pages/inventory/inventoryUtils';
 import {
   Search,
@@ -62,11 +61,9 @@ import {
   Home,
   Brush,
   ShoppingBag,
-  IndianRupee,
   Box,
   Trash2,
   PackagePlus,
-  AlertTriangle,
 } from 'lucide-react';
 
 const PAGE_SIZE = 10;
@@ -173,28 +170,28 @@ function ColoredSparkline({ seed, color }: { seed: string; color: string }) {
   const points = useMemo(() => {
     let h = 0;
     for (let i = 0; i < seed.length; i++) h = (h + seed.charCodeAt(i) * (i + 1)) % 100;
-    return Array.from({ length: 12 }, (_, i) => {
+    return Array.from({ length: 14 }, (_, i) => {
       h = (h * 1103515245 + 12345 + i) % 100;
-      return 8 + (h % 24);
+      return 10 + (h % 36);
     });
   }, [seed]);
 
   const d = points
-    .map((y, i) => `${(i / (points.length - 1)) * 100},${40 - y}`)
+    .map((y, i) => `${(i / (points.length - 1)) * 100},${52 - y}`)
     .join(' L ');
 
   const gradId = `sg-${seed}-${color.replace('#', '')}`;
 
   return (
-    <svg viewBox="0 0 100 40" className="w-[72px] h-8 shrink-0" preserveAspectRatio="none">
+    <svg viewBox="0 0 100 52" className="w-[128px] h-[56px] sm:w-[140px] sm:h-[64px] shrink-0 self-center" preserveAspectRatio="none">
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={`M 0,40 L ${d} L 100,40 Z`} fill={`url(#${gradId})`} />
-      <path d={`M ${d}`} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+      <path d={`M 0,52 L ${d} L 100,52 Z`} fill={`url(#${gradId})`} />
+      <path d={`M ${d}`} fill="none" stroke={color} strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -219,7 +216,7 @@ function StatCard({
   seed: string;
 }) {
   return (
-    <div className="bg-white rounded-[16px] border border-[#e2e8f0] shadow-sm p-5 flex items-start justify-between gap-3">
+    <div className="bg-white rounded-[16px] border border-[#e2e8f0] shadow-sm p-5 flex items-center justify-between gap-4 min-h-[128px]">
       <div className="min-w-0">
         <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center mb-3', iconBg)}>
           <Icon className={cn('w-5 h-5', iconColor)} strokeWidth={2} />
@@ -330,8 +327,6 @@ export default function InventoryPage() {
   const [stockQty, setStockQty] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  const [activeHash, setActiveHash] = useState<InventoryHash>('brands');
-  const [lowStockProducts, setLowStockProducts] = useState<Product[]>([]);
   const [globalSearch, setGlobalSearch] = useState('');
   const [brandStatusFilter, setBrandStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -394,24 +389,12 @@ export default function InventoryPage() {
     }
   }, []);
 
-  const loadLowStock = useCallback(async () => {
-    setLoading(true);
-    try {
-      setLowStockProducts(await inventoryApi.lowStock());
-    } catch {
-      toast.error('Failed to load low stock products');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     loadBrands();
   }, [loadBrands]);
 
   useEffect(() => {
     const hash = parseInventoryHash(location.hash);
-    setActiveHash(hash);
 
     if (isInventoryListView(hash)) {
       setSelectedBrand(null);
@@ -421,10 +404,7 @@ export default function InventoryPage() {
       setProductSearch('');
       setProductPage(1);
     }
-
-    if (hash === 'stock') loadLowStock();
-    if (hash === 'transfers') toast.info('Stock transfers coming soon');
-  }, [location.hash, loadLowStock]);
+  }, [location.hash]);
 
   function brandStats(brandId: string) {
     const bp = allProducts.filter((p) => p.brand === brandId);
@@ -507,7 +487,6 @@ export default function InventoryPage() {
     await loadBrands();
     if (selectedBrand) await loadTypes(selectedBrand._id);
     if (selectedBrand && selectedType) await loadProducts(selectedBrand._id, selectedType.name);
-    if (activeHash === 'stock') await loadLowStock();
   }
 
   function openCreateBrand() {
@@ -717,36 +696,15 @@ export default function InventoryPage() {
     }
   }
 
-  const filteredTypes = types.filter(
-    (t) => t.isActive !== false && t.name.toLowerCase().includes(typeSearch.toLowerCase())
-  );
+  const filteredTypes = types.filter((t) => {
+    if (t.isActive === false) return false;
+    const q = (typeSearch || globalSearch).toLowerCase();
+    return !q || t.name.toLowerCase().includes(q);
+  });
 
   const filteredProducts = products.filter((p) => productSearchMatch(p, productSearch || globalSearch));
 
-  const allProductsFiltered = useMemo(
-    () => allProducts.filter((p) => productSearchMatch(p, productSearch || globalSearch)),
-    [allProducts, productSearch, globalSearch]
-  );
-
-  const allProductsPage = useMemo(() => {
-    const total = Math.max(1, Math.ceil(allProductsFiltered.length / PAGE_SIZE));
-    const page = Math.min(productPage, total);
-    return {
-      items: allProductsFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-      total,
-    };
-  }, [allProductsFiltered, productPage]);
-
-  const lowStockFiltered = useMemo(
-    () => lowStockProducts.filter((p) => productSearchMatch(p, productSearch || globalSearch)),
-    [lowStockProducts, productSearch, globalSearch]
-  );
-
-  const showBrandsView =
-    (activeHash === 'brands' || activeHash === 'overview') && !selectedBrand;
-  const showAllProductsView = activeHash === 'products' && !selectedType;
-  const showStockView = activeHash === 'stock';
-  const showAllTypesView = activeHash === 'types' && !selectedBrand;
+  const showBrandsView = !selectedBrand;
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
   const pagedProducts = filteredProducts.slice(
@@ -755,16 +713,10 @@ export default function InventoryPage() {
   );
 
   const breadcrumb = selectedType && selectedBrand
-    ? `Inventory / Brands / ${selectedBrand.name} / ${selectedType.name}`
+    ? `Inventory / ${selectedBrand.name} / ${selectedType.name}`
     : selectedBrand
-      ? `Inventory / Brands / ${selectedBrand.name}`
-      : showAllProductsView
-        ? 'Inventory / Products'
-        : showStockView
-          ? 'Inventory / Stock'
-          : showAllTypesView
-            ? 'Inventory / Product Types'
-            : 'Inventory / Brands';
+      ? `Inventory / ${selectedBrand.name}`
+      : 'Inventory / Brands';
 
   function ActionMenu({ children }: { children: React.ReactNode }) {
     return (
@@ -881,7 +833,13 @@ export default function InventoryPage() {
           <div className="relative flex-1 max-w-md mx-auto hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
             <Input
-              placeholder="Search anything..."
+              placeholder={
+                selectedType
+                  ? 'Search products...'
+                  : selectedBrand
+                    ? 'Search product types...'
+                    : 'Search by brand name'
+              }
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
               className="w-full pl-9 pr-14 h-10 rounded-xl border-[#e2e8f0] bg-[#f8fafc] text-sm"
@@ -907,56 +865,24 @@ export default function InventoryPage() {
 
       <div className="px-6 lg:px-8 py-6 space-y-6">
         {/* ── Brands view ── */}
-        {!selectedBrand && (
+        {showBrandsView && (
           <>
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
               <div>
-                <h1 className="text-[28px] font-bold text-[#0f172a] tracking-tight">
-                  {showStockView ? 'Stock' : showAllProductsView ? 'Products' : showAllTypesView ? 'Product Types' : 'Brands'}
-                </h1>
-                <p className="text-[14px] text-[#64748b] mt-1">
-                  {showStockView
-                    ? 'Products at or below low stock threshold'
-                    : showAllProductsView
-                      ? 'All products across brands and types'
-                      : showAllTypesView
-                        ? 'All product categories across brands'
-                        : 'Manage all your product brands'}
-                </p>
+                <h1 className="text-[28px] font-bold text-[#0f172a] tracking-tight">Brands</h1>
+                <p className="text-[14px] text-[#64748b] mt-1">Manage all your brand products</p>
               </div>
-              {!showStockView && !showAllProductsView && (
               <div className="flex items-center gap-3">
-                {showAllTypesView ? (
-                  <Button
-                    onClick={openCreateType}
-                    className="rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] h-10 px-5 text-sm font-semibold shadow-[0_4px_14px_rgba(37,99,235,0.25)]"
-                  >
-                    <Plus className="w-4 h-4 mr-1.5" /> Add Product Type
-                  </Button>
-                ) : showBrandsView ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => setFilterDialog(true)}
-                      className="h-10 w-10 p-0 rounded-xl border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
-                    >
-                      <SlidersHorizontal className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      onClick={openCreateBrand}
-                      className="rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] h-10 px-5 text-sm font-semibold shadow-[0_4px_14px_rgba(37,99,235,0.25)]"
-                    >
-                      <Plus className="w-4 h-4 mr-1.5" /> Add Brand
-                    </Button>
-                  </>
-                ) : null}
+                <Button
+                  onClick={openCreateBrand}
+                  className="rounded-xl bg-[var(--brand-primary)] hover:opacity-90 h-10 px-5 text-sm font-semibold shadow-[0_4px_14px_rgba(19,88,250,0.25)]"
+                >
+                  <Plus className="w-4 h-4 mr-1.5" /> Add Brand
+                </Button>
               </div>
-              )}
             </div>
 
-            {showBrandsView && (
-            <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <StatCard
                 label="Total Brands"
                 value={loading ? '…' : String(globalStats.totalBrands)}
@@ -972,9 +898,9 @@ export default function InventoryPage() {
                 value={loading ? '…' : String(globalStats.totalTypes)}
                 trend="+5 this month"
                 icon={Layers}
-                iconBg="bg-[#dcfce7]"
-                iconColor="text-[#16a34a]"
-                sparkColor="#16a34a"
+                iconBg="bg-[#f3e8ff]"
+                iconColor="text-[#9333ea]"
+                sparkColor="#9333ea"
                 seed="types"
               />
               <StatCard
@@ -982,44 +908,40 @@ export default function InventoryPage() {
                 value={loading ? '…' : globalStats.totalProducts.toLocaleString('en-IN')}
                 trend="+120 this month"
                 icon={Box}
-                iconBg="bg-[#f3e8ff]"
-                iconColor="text-[#9333ea]"
-                sparkColor="#9333ea"
-                seed="products"
-              />
-              <StatCard
-                label="Inventory Value"
-                value={loading ? '…' : formatINR(globalStats.inventoryValue)}
-                trend="+8.4% this month"
-                icon={IndianRupee}
                 iconBg="bg-[#ffedd5]"
                 iconColor="text-[#ea580c]"
                 sparkColor="#ea580c"
-                seed="value"
+                seed="products"
               />
             </div>
 
             <section className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-sm overflow-x-auto">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-5 border-b border-[#f1f5f9]">
-                <div className="relative flex-1 max-w-xs">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-5 border-b border-[#f1f5f9]">
+                <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
                   <Input
-                    placeholder="Search brands..."
+                    placeholder="Search by brand name"
                     value={brandSearch}
                     onChange={(e) => setBrandSearch(e.target.value)}
                     className="pl-9 h-10 rounded-xl border-[#e2e8f0] bg-[#f8fafc] text-sm"
                   />
                 </div>
-                <div className="flex items-center gap-2 text-sm text-[#64748b]">
-                  <span className="font-medium">Sort by:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setFilterDialog(true)}
+                    className="h-10 rounded-xl border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc] gap-2"
+                  >
+                    <SlidersHorizontal className="w-4 h-4" /> Filter
+                  </Button>
                   <Select value={brandSort} onValueChange={(v) => setBrandSort(v as typeof brandSort)}>
-                    <SelectTrigger className="h-10 rounded-xl border-[#e2e8f0] bg-white min-w-[120px]">
-                      <SelectValue />
+                    <SelectTrigger className="h-10 rounded-xl border-[#e2e8f0] bg-white min-w-[130px]">
+                      <SelectValue placeholder="Sort by" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="newest">Newest</SelectItem>
-                      <SelectItem value="name">Name</SelectItem>
-                      <SelectItem value="value">Value</SelectItem>
+                      <SelectItem value="newest">Sort by · Newest</SelectItem>
+                      <SelectItem value="name">Sort by · Name</SelectItem>
+                      <SelectItem value="value">Sort by · Value</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1029,9 +951,9 @@ export default function InventoryPage() {
                 <TableHeader>
                   <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide pl-6">Brand</TableHead>
-                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Product Types</TableHead>
+                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Types</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Products</TableHead>
-                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Inventory Value</TableHead>
+                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Value</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Status</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide text-right pr-6">Actions</TableHead>
                   </TableRow>
@@ -1060,11 +982,17 @@ export default function InventoryPage() {
                         >
                           <TableCell className="pl-6">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#f1f5f9] border border-[#e2e8f0] flex items-center justify-center overflow-hidden text-xs font-bold text-[#475569] shrink-0">
+                              <div className="w-12 h-10 rounded-md bg-[#f8fafc] border border-[#e2e8f0] flex items-center justify-center shrink-0 px-1">
                                 {brand.image ? (
-                                  <img src={brand.image} alt="" className="w-full h-full object-cover" />
+                                  <img
+                                    src={brand.image}
+                                    alt=""
+                                    className="max-w-full max-h-full w-auto h-auto object-contain"
+                                  />
                                 ) : (
-                                  brandInitials(brand.name)
+                                  <span className="text-xs font-bold text-[#475569]">
+                                    {brandInitials(brand.name)}
+                                  </span>
                                 )}
                               </div>
                               <div>
@@ -1093,10 +1021,10 @@ export default function InventoryPage() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-8 w-8 p-0 text-[#64748b] hover:text-[#2563eb]"
+                                className="h-8 gap-1.5 px-2.5 text-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-tertiary)]"
                                 onClick={(e) => openEditBrand(brand, e)}
                               >
-                                <Pencil className="w-4 h-4" />
+                                <Pencil className="w-3.5 h-3.5" /> Edit
                               </Button>
                               <ActionMenu>
                                 <DropdownMenuItem
@@ -1152,166 +1080,11 @@ export default function InventoryPage() {
                 </div>
               )}
             </section>
-            </>
-            )}
-
-            {showAllTypesView && (
-              <section className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-sm p-6">
-                {allTypes.length === 0 ? (
-                  <EmptyBlock label="No product types yet" onAdd={openCreateType} />
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                    {allTypes
-                      .filter((t) => t.isActive !== false)
-                      .filter((t) => {
-                        const brand = brands.find((b) => b._id === t.brandId);
-                        const q = globalSearch.toLowerCase();
-                        if (!q) return true;
-                        return t.name.toLowerCase().includes(q) || brand?.name.toLowerCase().includes(q);
-                      })
-                      .map((type) => {
-                        const brand = brands.find((b) => b._id === type.brandId);
-                        const stats = allProducts.filter((p) => p.brand === type.brandId && p.type === type.name);
-                        const stockValue = stats.reduce((s, p) => s + stockOf(p) * priceOf(p), 0);
-                        const { Icon, bg, color } = resolveTypeIcon(type.icon, type.name);
-                        return (
-                          <div
-                            key={type._id}
-                            className="relative flex items-center gap-4 rounded-[16px] border border-[#e2e8f0] bg-[#fafafa] p-4 hover:shadow-md transition-all"
-                          >
-                            <button
-                              type="button"
-                              className="flex items-center gap-4 flex-1 text-left min-w-0"
-                              onClick={() => {
-                                if (!brand) return;
-                                setSelectedBrand(brand);
-                                setSelectedType(type);
-                                setProductSearch('');
-                                window.location.hash = 'drilldown';
-                                loadTypes(brand._id);
-                                loadProducts(brand._id, type.name);
-                              }}
-                            >
-                              <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center shrink-0', bg)}>
-                                <Icon className={cn('w-6 h-6', color)} strokeWidth={2} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-[#0f172a] truncate">{type.name}</p>
-                                <p className="text-[12px] text-[#64748b] mt-0.5 truncate">{brand?.name ?? '—'}</p>
-                                <p className="text-[12px] text-[#64748b]">{stats.length} Products · {formatINR(stockValue)}</p>
-                              </div>
-                            </button>
-                            <ActionMenu>
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onSelect={() => openEditType(type)}
-                              >
-                                <Pencil className="w-4 h-4 mr-2" /> Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="cursor-pointer"
-                                onSelect={() => brand && selectType(type, brand)}
-                              >
-                                <Package className="w-4 h-4 mr-2" /> View products
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                className="cursor-pointer text-red-600 focus:text-red-600"
-                                onSelect={() =>
-                                  setConfirmDelete({ kind: 'type', id: type._id, label: type.name })
-                                }
-                              >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </ActionMenu>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-              </section>
-            )}
-
-            {(showAllProductsView || showStockView) && (
-              <section className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-sm overflow-x-auto">
-                <div className="p-5 border-b border-[#f1f5f9] flex flex-wrap items-center gap-3">
-                  <div className="relative flex-1 max-w-xs">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
-                    <Input
-                      placeholder="Search products..."
-                      value={productSearch}
-                      onChange={(e) => { setProductSearch(e.target.value); setProductPage(1); }}
-                      className="pl-9 h-10 rounded-xl border-[#e2e8f0] bg-[#f8fafc] text-sm"
-                    />
-                  </div>
-                  {showStockView && (
-                    <Badge className="rounded-full bg-[#ffedd5] text-[#c2410c] border border-[#fed7aa]">
-                      <AlertTriangle className="w-3 h-3 mr-1" />
-                      {lowStockFiltered.length} low stock
-                    </Badge>
-                  )}
-                </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide pl-6">Product</TableHead>
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">SKU</TableHead>
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Pack Size</TableHead>
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Stock</TableHead>
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Price</TableHead>
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Status</TableHead>
-                      <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide text-right pr-6">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="py-16 text-center">
-                          <Loader2 className="h-7 w-7 animate-spin mx-auto text-[#94a3b8]" />
-                        </TableCell>
-                      </TableRow>
-                    ) : showStockView ? (
-                      lowStockFiltered.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={7} className="py-16 text-center text-[#64748b]">No low stock products</TableCell>
-                        </TableRow>
-                      ) : (
-                        lowStockFiltered.map((p) => renderProductRow(p, true))
-                      )
-                    ) : allProductsPage.items.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="py-16 text-center text-[#64748b]">No products found</TableCell>
-                      </TableRow>
-                    ) : (
-                      allProductsPage.items.map((p) => renderProductRow(p, true))
-                    )}
-                  </TableBody>
-                </Table>
-                {showAllProductsView && allProductsFiltered.length > 0 && (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-[#f1f5f9] bg-[#fafafa]">
-                    <p className="text-[13px] text-[#64748b]">
-                      Showing {(productPage - 1) * PAGE_SIZE + 1} to{' '}
-                      {Math.min(productPage * PAGE_SIZE, allProductsFiltered.length)} of{' '}
-                      {allProductsFiltered.length} products
-                    </p>
-                    <PaginationBar page={productPage} totalPages={allProductsPage.total} onPageChange={setProductPage} />
-                  </div>
-                )}
-              </section>
-            )}
           </>
         )}
 
-        {/* Connector */}
-        {selectedBrand && !selectedType && (
-          <div className="flex justify-center py-1">
-            <ChevronDown className="w-7 h-7 text-[#2563eb]" strokeWidth={2.5} />
-          </div>
-        )}
-
         {/* ── Product types ── */}
-        {selectedBrand && (
+        {selectedBrand && !selectedType && (
           <section className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-sm p-6">
             <nav className="text-[13px] text-[#64748b] mb-3">
               <span className="hover:text-[#2563eb] cursor-pointer" onClick={goToBrands}>
@@ -1345,7 +1118,7 @@ export default function InventoryPage() {
                 </div>
                 <Button
                   onClick={openCreateType}
-                  className="rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] h-10 px-4 text-sm font-semibold"
+                  className="rounded-xl bg-[var(--brand-primary)] hover:opacity-90 h-10 px-4 text-sm font-semibold text-white"
                 >
                   <Plus className="w-4 h-4 mr-1.5" /> Add product type
                 </Button>
@@ -1357,69 +1130,70 @@ export default function InventoryPage() {
             ) : filteredTypes.length === 0 ? (
               <EmptyBlock label="No product types yet" onAdd={openCreateType} />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {filteredTypes.map((type) => {
                   const stats = typeStats(type.name);
-                  const selected = selectedType?._id === type._id;
                   const { Icon, bg, color } = resolveTypeIcon(type.icon, type.name);
+                  const avgPrice = stats.productCount
+                    ? stats.stockValue / stats.productCount
+                    : 0;
                   return (
                     <div
                       key={type._id}
-                      className={cn(
-                        'relative flex items-center gap-4 rounded-[16px] border p-4 transition-all hover:shadow-md',
-                        selected
-                          ? 'border-[#2563eb] ring-2 ring-[#2563eb]/20 bg-[#eff6ff]/30'
-                          : 'border-[#e2e8f0] bg-[#fafafa] hover:border-[#bfdbfe]'
-                      )}
+                      className="relative group rounded-[16px] border border-[#e8edf3] bg-white p-5 min-h-[148px] flex flex-col justify-between hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)] hover:border-[#dbe3ef] transition-all cursor-pointer"
+                      onClick={() => selectType(type)}
                     >
-                      <button type="button" onClick={() => selectType(type)} className="flex items-center gap-4 flex-1 text-left min-w-0">
-                        <div className={cn('w-12 h-12 rounded-xl flex items-center justify-center shrink-0', bg)}>
-                          <Icon className={cn('w-6 h-6', color)} strokeWidth={2} />
+                      <div className="flex items-start justify-between gap-3">
+                        <div className={cn('w-11 h-11 rounded-[12px] flex items-center justify-center shrink-0', bg)}>
+                          <Icon className={cn('w-5 h-5', color)} strokeWidth={2} />
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-[#0f172a] truncate">{type.name}</p>
-                          <p className="text-[12px] text-[#64748b] mt-0.5">
-                            {stats.productCount} Products · {formatINR(stats.stockValue)}
+                        <div className="flex items-start gap-1">
+                          <p className="text-[32px] sm:text-[34px] font-bold text-[#1e293b] tracking-tight leading-none tabular-nums">
+                            {stats.productCount}
                           </p>
+                          <div
+                            className="opacity-0 group-hover:opacity-100 transition-opacity -mt-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ActionMenu>
+                              <DropdownMenuItem className="cursor-pointer" onSelect={() => openEditType(type)}>
+                                <Pencil className="w-4 h-4 mr-2" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="cursor-pointer" onSelect={() => selectType(type)}>
+                                <Package className="w-4 h-4 mr-2" /> View products
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                variant="destructive"
+                                className="cursor-pointer text-red-600 focus:text-red-600"
+                                onSelect={() =>
+                                  setConfirmDelete({ kind: 'type', id: type._id, label: type.name })
+                                }
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </ActionMenu>
+                          </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-[#94a3b8] shrink-0" />
-                      </button>
-                      <ActionMenu>
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onSelect={() => openEditType(type)}
-                        >
-                          <Pencil className="w-4 h-4 mr-2" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer"
-                          onSelect={() => selectType(type)}
-                        >
-                          <Package className="w-4 h-4 mr-2" /> View products
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          className="cursor-pointer text-red-600 focus:text-red-600"
-                          onSelect={() =>
-                            setConfirmDelete({ kind: 'type', id: type._id, label: type.name })
-                          }
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" /> Delete
-                        </DropdownMenuItem>
-                      </ActionMenu>
+                      </div>
+
+                      <div className="mt-4 min-w-0">
+                        <p className="text-[16px] font-semibold text-[#1e293b] truncate leading-snug">
+                          {type.name}
+                        </p>
+                        <p className="text-[13px] text-[#94a3b8] mt-1.5">
+                          Price: ₹{avgPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        <p className="text-[13px] font-semibold text-[#16a34a] mt-1.5">
+                          +{stats.productCount} this month
+                        </p>
+                      </div>
                     </div>
                   );
                 })}
               </div>
             )}
           </section>
-        )}
-
-        {selectedBrand && selectedType && (
-          <div className="flex justify-center py-3">
-            <ChevronDown className="w-7 h-7 text-[#2563eb]" strokeWidth={2.5} />
-          </div>
         )}
 
         {/* ── Products table ── */}
@@ -1449,9 +1223,6 @@ export default function InventoryPage() {
                     <ChevronLeft className="w-4 h-4 mr-1" /> Types
                   </Button>
                   <h2 className="text-xl font-bold text-[#0f172a]">{selectedType.name}</h2>
-                  <Badge className="rounded-full bg-[#eff6ff] text-[#2563eb] border border-[#bfdbfe] hover:bg-[#eff6ff] font-semibold">
-                    {filteredProducts.length} Products
-                  </Badge>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="relative">
@@ -1466,12 +1237,9 @@ export default function InventoryPage() {
                       className="pl-9 h-10 w-[200px] rounded-xl border-[#e2e8f0] text-sm"
                     />
                   </div>
-                  <Button variant="outline" className="h-10 rounded-xl border-[#e2e8f0] gap-2 text-[#475569]">
-                    <SlidersHorizontal className="w-4 h-4" /> Filter
-                  </Button>
                   <Button
                     onClick={openCreateProduct}
-                    className="rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] h-10 px-4 text-sm font-semibold"
+                    className="rounded-xl bg-[var(--brand-primary)] hover:opacity-90 h-10 px-4 text-sm font-semibold"
                   >
                     <Plus className="w-4 h-4 mr-1.5" /> Add product
                   </Button>
@@ -1527,6 +1295,7 @@ export default function InventoryPage() {
           </section>
         )}
       </div>
+
 
       {/* Dialogs */}
       <Dialog

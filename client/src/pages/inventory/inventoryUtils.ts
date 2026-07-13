@@ -6,28 +6,17 @@ export type DeleteTarget = {
   label: string;
 };
 
-export type InventoryHash =
-  | 'overview'
-  | 'brands'
-  | 'types'
-  | 'products'
-  | 'stock'
-  | 'transfers'
-  | 'drilldown';
+export type InventoryHash = 'brands' | 'drilldown';
 
 export function parseInventoryHash(raw: string): InventoryHash {
-  const h = raw.replace('#', '') || 'brands';
-  if (
-    ['overview', 'brands', 'types', 'products', 'stock', 'transfers', 'drilldown'].includes(h)
-  ) {
-    return h as InventoryHash;
-  }
+  const h = raw.replace('#', '');
+  if (h === 'drilldown') return 'drilldown';
   return 'brands';
 }
 
-/** Sidebar list views — entering one exits brand/type drill-down */
+/** Top-level brands list — entering it exits brand/type drill-down */
 export function isInventoryListView(hash: InventoryHash) {
-  return hash === 'overview' || hash === 'brands' || hash === 'types' || hash === 'products' || hash === 'stock';
+  return hash === 'brands';
 }
 
 export function apiError(err: unknown, fallback: string) {

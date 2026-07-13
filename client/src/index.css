@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+:root {
+  --brand-primary: #1358fa;
+  --brand-secondary: #b3caf2;
+  --brand-tertiary: #f2f9ff;
+  --brand-text: #000000;
+  --brand-space: #f9fbfc;
+}
+
 @theme {
   --color-background: 0 0% 100%;
   --color-foreground: 222.2 84% 4.9%;

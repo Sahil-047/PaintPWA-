@@ -345,10 +345,10 @@ export default function BillingPage() {
         <div>
           <div className="relative mb-4">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-[#94a3b8]" strokeWidth={2.25} />
-            <Input
+            <Input type="text"
               placeholder="Search products by name, brand, code or base"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
               className="pl-12 h-[52px] rounded-full bg-[#f1f5f9] border-0 shadow-none text-[14px] text-[#334155] placeholder:text-[#94a3b8] focus-visible:ring-[#2563eb]/30"
             />
           </div>
@@ -532,16 +532,16 @@ export default function BillingPage() {
                             {sizeOptions.length > 1 ? (
                               <Select
                                 value={item.packSize}
-                                onValueChange={(v) =>
+                                onValueChange={(v: string) =>
                                   product && changeCartSize(item, v, product)
                                 }
                               >
                                 <SelectTrigger className="h-8 w-[88px] text-xs border-[#e2e8f0]">
                                   <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent className="bg-white">
                                   {sizeOptions.map((o) => (
-                                    <SelectItem key={o.size} value={o.size}>
+                                    <SelectItem key={o.size} value={o.size} className="bg-white">
                                       {o.size} ({o.stock})
                                     </SelectItem>
                                   ))}
@@ -560,7 +560,7 @@ export default function BillingPage() {
                               min={0}
                               step="0.01"
                               value={item.price || ''}
-                              onChange={(e) => updatePrice(item.cartItemId, e.target.value)}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updatePrice(item.cartItemId, e.target.value)}
                               className="h-8 w-[100px] text-[13px] font-semibold border-[#e2e8f0] rounded-lg"
                             />
                           </div>
@@ -619,7 +619,7 @@ export default function BillingPage() {
                     <input
                       type="checkbox"
                       checked={discountChecked}
-                      onChange={(e) => setDiscountChecked(e.target.checked)}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDiscountChecked(e.target.checked)}
                       className="accent-[#2563eb]"
                     />
                     Discount
@@ -633,7 +633,7 @@ export default function BillingPage() {
                     type="number"
                     min="0"
                     value={discount}
-                    onChange={(e) => setDiscount(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDiscount(e.target.value)}
                     className="h-9 text-sm border-[#e2e8f0]"
                   />
                 )}
@@ -661,7 +661,7 @@ export default function BillingPage() {
         onOpenChange={setPickerOpen}
         product={pickerProduct}
         inCartCounts={pickerInCartCounts}
-        onSelect={(opt) => pickerProduct && addToCartWithSize(pickerProduct, opt)}
+        onSelect={(opt: SizeOption) => pickerProduct && addToCartWithSize(pickerProduct, opt)}
       />
 
       <InvoiceCheckoutDialog
