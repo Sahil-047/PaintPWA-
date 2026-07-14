@@ -5,6 +5,7 @@ export const createExpenseSchema = z.object({
   description: z.string().optional(),
   amount: z.number().min(0),
   date: z.coerce.date().optional(),
+  painterId: z.string().optional().nullable(),
 });
 
 export type CreateExpenseInput = z.infer<typeof createExpenseSchema>;

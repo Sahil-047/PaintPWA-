@@ -9,6 +9,9 @@ export interface Tenant {
   slug: string;
   plan: TenantPlan;
   status?: TenantStatus;
+  phone?: string;
+  address?: string;
+  gstin?: string;
   createdAt?: string;
 }
 
@@ -201,6 +204,26 @@ export interface Customer {
   createdAt: string;
 }
 
+// Painters
+export interface Painter {
+  _id: string;
+  tenantId: string;
+  name: string;
+  phone: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface PainterWithStats extends Painter {
+  totalPaid: number;
+}
+
+export interface PainterDetail {
+  painter: Painter;
+  payments: Expense[];
+  totalPaid: number;
+}
+
 // Expenses
 export interface Expense {
   _id: string;
@@ -210,6 +233,7 @@ export interface Expense {
   amount: number;
   date: string;
   addedBy: string;
+  painterId?: string | { _id: string; name: string } | null;
 }
 
 // Reports

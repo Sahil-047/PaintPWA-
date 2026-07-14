@@ -162,38 +162,45 @@ function MetricCard({
       type="button"
       onClick={onClick}
       className={cn(
-        'relative h-full w-full overflow-hidden text-left rounded-[20px] p-4 lg:p-5 flex flex-col justify-between transition',
+        'relative w-full overflow-hidden text-left rounded-[18px] sm:rounded-[20px] p-4 sm:p-5 flex flex-col min-h-[132px] sm:min-h-[148px] h-full transition',
         accent
           ? 'bg-[var(--brand-primary)] text-white shadow-[0_12px_32px_rgba(19,88,250,0.25)]'
           : 'bg-white text-[#0f172a] border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)]'
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <p className={cn('text-[15px] lg:text-[16px] font-medium', accent ? 'text-white/85' : 'text-[#64748b]')}>
+        <p
+          className={cn(
+            'text-[14px] sm:text-[15px] font-medium leading-snug',
+            accent ? 'text-white/85' : 'text-[#64748b]'
+          )}
+        >
           {label}
         </p>
         <span
           className={cn(
-            'w-9 h-9 lg:w-10 lg:h-10 rounded-full inline-flex items-center justify-center shrink-0',
+            'w-8 h-8 sm:w-9 sm:h-9 rounded-full inline-flex items-center justify-center shrink-0',
             accent ? 'bg-white text-[#0f172a]' : 'bg-[#f1f5f9] text-[#0f172a]'
           )}
         >
-          <ArrowUpRight className="w-4 h-4 lg:w-[18px] lg:h-[18px]" strokeWidth={2.25} />
+          <ArrowUpRight className="w-4 h-4" strokeWidth={2.25} />
         </span>
       </div>
 
       <div className="mt-auto pt-3">
-        <p className="text-[26px] sm:text-[30px] lg:text-[34px] font-bold tracking-tight leading-none truncate">
+        <p className="text-[24px] sm:text-[28px] lg:text-[32px] font-bold tracking-tight leading-none truncate">
           {loading ? (
-            <Loader2 className={cn('h-6 w-6 animate-spin', accent ? 'text-white/70' : 'text-[#94a3b8]')} />
+            <Loader2
+              className={cn('h-6 w-6 animate-spin', accent ? 'text-white/70' : 'text-[#94a3b8]')}
+            />
           ) : (
             value
           )}
         </p>
-        <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+        <div className="mt-2 flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <span
             className={cn(
-              'inline-flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[12px] lg:text-[13px] font-semibold',
+              'inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] sm:text-[12px] font-semibold',
               trend.up
                 ? accent
                   ? 'bg-[#bbf7d0] text-[#166534]'
@@ -203,10 +210,15 @@ function MetricCard({
                   : 'bg-[#fee2e2] text-[#b91c1c]'
             )}
           >
-            <TrendIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <TrendIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
             {trend.pct}%
           </span>
-          <span className={cn('text-[12px] lg:text-[13px]', accent ? 'text-white/75' : 'text-[#94a3b8]')}>
+          <span
+            className={cn(
+              'text-[11px] sm:text-[12px] leading-tight',
+              accent ? 'text-white/75' : 'text-[#94a3b8]'
+            )}
+          >
             {compareLabel}
           </span>
         </div>
@@ -238,7 +250,7 @@ function StatusCard({
     <button
       type="button"
       onClick={onClick}
-      className="relative overflow-hidden h-full w-full text-left rounded-[20px] bg-white border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-4 lg:p-5 flex flex-col justify-between"
+      className="relative overflow-hidden w-full text-left rounded-[18px] sm:rounded-[20px] bg-white border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-4 sm:p-5 flex flex-col min-h-[140px] sm:min-h-[160px] h-full"
     >
       {decoration && (
         <div
@@ -251,25 +263,23 @@ function StatusCard({
         />
       )}
       <div className="flex items-start justify-between relative z-[1]">
-        <div className="w-10 h-10 lg:w-11 lg:h-11 rounded-full bg-[#f1f5f9] inline-flex items-center justify-center text-[#64748b]">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#f1f5f9] inline-flex items-center justify-center text-[#64748b]">
           {icon}
         </div>
         {highlight && (
-          <span className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-[#0f172a] text-white inline-flex items-center justify-center">
+          <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#0f172a] text-white inline-flex items-center justify-center">
             <ArrowUpRight className="w-4 h-4" strokeWidth={2.25} />
           </span>
         )}
       </div>
-      <div className="relative z-[1] mt-auto pt-4">
-        <p className="text-[28px] sm:text-[32px] lg:text-[36px] font-bold tracking-tight text-[#0f172a] leading-none">
-          {loading ? <Loader2 className="h-7 w-7 animate-spin text-[#94a3b8]" /> : value}{' '}
+      <div className="relative z-[1] mt-auto pt-3 sm:pt-4">
+        <p className="text-[24px] sm:text-[28px] lg:text-[32px] font-bold tracking-tight text-[#0f172a] leading-none">
+          {loading ? <Loader2 className="h-6 w-6 animate-spin text-[#94a3b8]" /> : value}{' '}
           {!loading && (
-            <span className="text-[16px] sm:text-[18px] lg:text-[20px] font-semibold text-[#64748b]">
-              {unit}
-            </span>
+            <span className="text-[14px] sm:text-[16px] font-semibold text-[#64748b]">{unit}</span>
           )}
         </p>
-        <p className="mt-2.5 text-[13px] sm:text-[14px] text-[#64748b] leading-snug line-clamp-2">
+        <p className="mt-2 text-[12px] sm:text-[13px] text-[#64748b] leading-snug line-clamp-2">
           {message}
         </p>
       </div>
@@ -290,6 +300,7 @@ export default function DashboardPage() {
   const [returns, setReturns] = useState<ReturnItem[]>([]);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
       try {
@@ -299,15 +310,19 @@ export default function DashboardPage() {
           expensesApi.list(),
           returnsApi.list(),
         ]);
+        if (cancelled) return;
         setBills(billList);
         setAccounts(accountList);
         setExpenses(expenseList);
         setReturns(returnList);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const range = useMemo(() => getPeriodRange(period), [period]);
@@ -455,26 +470,26 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="h-full min-h-0 bg-[var(--brand-space)] px-4 sm:px-5 lg:px-6 py-4 lg:py-5 flex flex-col overflow-hidden">
-      <div className="w-full h-full min-h-0 flex flex-col gap-4">
-        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shrink-0">
+    <div className="min-h-full bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-7 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      <div className="w-full max-w-[1440px] mx-auto space-y-5 sm:space-y-6">
+        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-[28px] sm:text-[32px] lg:text-[36px] font-bold text-[#0f172a] tracking-tight leading-tight">
+            <h1 className="text-[26px] sm:text-[30px] lg:text-[34px] font-bold text-[#0f172a] tracking-tight leading-tight">
               Hello, {firstName}! 👋
             </h1>
-            <p className="mt-1 text-[14px] sm:text-[15px] text-[#64748b]">
+            <p className="mt-1.5 text-[13px] sm:text-[14px] text-[#64748b] leading-relaxed">
               This is what&apos;s happening in your store {PERIOD_LABELS[period]}.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
             <Select value={period} onValueChange={(v: string) => setPeriod(v as Period)}>
-              <SelectTrigger className="h-10 rounded-full border-[#e2e8f0] bg-white px-4 min-w-[140px] text-[14px] font-medium text-[#334155] shadow-sm">
+              <SelectTrigger className="h-10 rounded-full border-[#e2e8f0] bg-white px-4 min-w-[132px] sm:min-w-[148px] text-[13px] sm:text-[14px] font-medium text-[#334155] shadow-sm">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="">
-                <SelectItem className="" value="this-month">This month</SelectItem>
-                <SelectItem className="" value="last-month">Last month</SelectItem>
-                <SelectItem className="" value="this-week">This week</SelectItem>
+              <SelectContent>
+                <SelectItem value="this-month">This month</SelectItem>
+                <SelectItem value="last-month">Last month</SelectItem>
+                <SelectItem value="this-week">This week</SelectItem>
               </SelectContent>
             </Select>
             <button
@@ -489,64 +504,85 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Viewport-fit grid: 4 cols × 3 equal fr rows */}
-        <section
-          className="flex-1 min-h-0 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
-          style={{ gridTemplateRows: 'repeat(3, minmax(0, 1fr))' }}
-        >
-          <div className="min-h-0 h-full">
-            <MetricCard
-              label="Total revenue"
-              value={formatMoney(periodRevenue)}
-              trend={revenueTrend}
-              compareLabel={compareLabel}
-              accent
-              loading={loading}
-              onClick={() => navigate(ROUTES.REPORTS)}
-            />
-          </div>
-          <div className="min-h-0 h-full">
-            <MetricCard
-              label="Total orders"
-              value={String(filteredBills.length)}
-              trend={ordersTrend}
-              compareLabel={compareLabel}
-              loading={loading}
-              onClick={() => navigate(ROUTES.BILLING)}
-            />
-          </div>
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <MetricCard
+            label="Total revenue"
+            value={formatMoney(periodRevenue)}
+            trend={revenueTrend}
+            compareLabel={compareLabel}
+            accent
+            loading={loading}
+            onClick={() => navigate(ROUTES.REPORTS)}
+          />
+          <MetricCard
+            label="Total orders"
+            value={String(filteredBills.length)}
+            trend={ordersTrend}
+            compareLabel={compareLabel}
+            loading={loading}
+            onClick={() => navigate(ROUTES.BILLING)}
+          />
+          <MetricCard
+            label="Total customers"
+            value={formatCompact(periodCustomerCount)}
+            trend={visitorsTrend}
+            compareLabel={compareLabel}
+            loading={loading}
+            onClick={() => navigate(ROUTES.ACCOUNTS)}
+          />
+          <MetricCard
+            label="Net profit"
+            value={formatMoney(netProfit)}
+            trend={profitTrend}
+            compareLabel={compareLabel}
+            loading={loading}
+            onClick={() => navigate(ROUTES.REPORTS)}
+          />
+        </section>
 
-          <div className="col-span-2 row-span-2 min-h-0 h-full rounded-[20px] bg-white border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-3 sm:p-4 lg:p-5 flex flex-col">
-            <div className="flex items-start justify-between gap-3 shrink-0 mb-1">
-              <div>
-                <h2 className="text-[18px] lg:text-[20px] font-bold text-[#0f172a]">Revenue</h2>
-                <p className="text-[13px] text-[#94a3b8]">{compareLabel}</p>
+        <section className="grid grid-cols-1 xl:grid-cols-12 gap-3 sm:gap-4 lg:gap-5">
+          <div className="xl:col-span-8 rounded-[18px] sm:rounded-[20px] bg-white border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-4 sm:p-5 flex flex-col min-h-[280px] sm:min-h-[320px] lg:min-h-[360px]">
+            <div className="flex items-start justify-between gap-3 mb-3 sm:mb-4">
+              <div className="min-w-0">
+                <h2 className="text-[16px] sm:text-[18px] font-bold text-[#0f172a]">Revenue</h2>
+                <p className="text-[12px] sm:text-[13px] text-[#94a3b8]">{compareLabel}</p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate(ROUTES.REPORTS)}
-                className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-[#0f172a] text-white inline-flex items-center justify-center hover:opacity-90"
+                className="w-9 h-9 rounded-full bg-[#0f172a] text-white inline-flex items-center justify-center hover:opacity-90 shrink-0"
               >
-                <ArrowUpRight className="w-4 h-4 lg:w-[18px] lg:h-[18px]" strokeWidth={2.25} />
+                <ArrowUpRight className="w-4 h-4" strokeWidth={2.25} />
               </button>
             </div>
-            <div className="flex-1 min-h-0 w-full">
+            <div className="flex-1 min-h-[200px] sm:min-h-[240px] w-full">
               {loading ? (
                 <div className="h-full flex items-center justify-center">
                   <Loader2 className="h-7 w-7 animate-spin text-[#94a3b8]" />
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueBars} barCategoryGap="28%" margin={{ top: 8, right: 4, left: -12, bottom: 0 }}>
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13 }} />
+                  <BarChart
+                    data={revenueBars}
+                    barCategoryGap="22%"
+                    margin={{ top: 8, right: 4, left: -18, bottom: 4 }}
+                  >
+                    <XAxis
+                      dataKey="label"
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={28}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                    />
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fill: '#64748b', fontSize: 13 }}
+                      width={44}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
                       tickFormatter={(v) =>
                         `₹${Number(v) >= 1000 ? `${Math.round(Number(v) / 1000)}k` : v}`
                       }
-                      width={48}
                     />
                     <Tooltip
                       cursor={{ fill: 'rgba(19,88,250,0.06)' }}
@@ -554,40 +590,24 @@ export default function DashboardPage() {
                         borderRadius: 12,
                         border: '1px solid #e2e8f0',
                         boxShadow: '0 8px 20px rgba(15,23,42,0.08)',
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: 600,
                       }}
                       formatter={(value) => [formatMoney(Number(value ?? 0)), 'Revenue']}
                     />
-                    <Bar dataKey="value" fill="var(--brand-primary)" radius={[10, 10, 10, 10]} maxBarSize={40} />
+                    <Bar
+                      dataKey="value"
+                      fill="var(--brand-primary)"
+                      radius={[8, 8, 8, 8]}
+                      maxBarSize={36}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
           </div>
 
-          <div className="min-h-0 h-full">
-            <MetricCard
-              label="Total customers"
-              value={formatCompact(periodCustomerCount)}
-              trend={visitorsTrend}
-              compareLabel={compareLabel}
-              loading={loading}
-              onClick={() => navigate(ROUTES.ACCOUNTS)}
-            />
-          </div>
-          <div className="min-h-0 h-full">
-            <MetricCard
-              label="Net profit"
-              value={formatMoney(netProfit)}
-              trend={profitTrend}
-              compareLabel={compareLabel}
-              loading={loading}
-              onClick={() => navigate(ROUTES.REPORTS)}
-            />
-          </div>
-
-          <div className="min-h-0 h-full">
+          <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3 sm:gap-4 lg:gap-5">
             <StatusCard
               icon={<Check className="w-5 h-5" strokeWidth={2.25} />}
               value={filteredBills.length}
@@ -602,8 +622,6 @@ export default function DashboardPage() {
                 </>
               }
             />
-          </div>
-          <div className="min-h-0 h-full">
             <StatusCard
               icon={<User className="w-5 h-5" strokeWidth={2.25} />}
               value={periodCustomerCount}
@@ -618,80 +636,82 @@ export default function DashboardPage() {
                 </>
               }
             />
-          </div>
 
-          <div className="col-span-2 min-h-0 h-full rounded-[20px] bg-white border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-3 sm:p-4 lg:p-5 flex flex-col">
-            <div className="flex items-start justify-between gap-3 shrink-0">
-              <div>
-                <h2 className="text-[18px] lg:text-[20px] font-bold text-[#0f172a]">Sales by Category</h2>
-                <p className="text-[13px] text-[#94a3b8]">{compareLabel}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate(ROUTES.REPORTS)}
-                className="w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-[#0f172a] text-white inline-flex items-center justify-center hover:opacity-90"
-              >
-                <ArrowUpRight className="w-4 h-4 lg:w-[18px] lg:h-[18px]" strokeWidth={2.25} />
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="h-7 w-7 animate-spin text-[#94a3b8]" />
-              </div>
-            ) : (
-              <div className="flex-1 min-h-0 flex items-center gap-3 mt-1">
-                <div className="h-full aspect-square max-h-full max-w-[42%] shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius="42%"
-                        outerRadius="72%"
-                        paddingAngle={2}
-                        stroke="none"
-                      >
-                        {categoryData.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} />
-                        ))}
-                        <LabelList
-                          dataKey="value"
-                          position="inside"
-                          formatter={(v) => `${v}%`}
-                          style={{ fill: '#fff', fontSize: 12, fontWeight: 700 }}
-                        />
-                      </Pie>
-                      <Tooltip
-                        formatter={(value, name) => [`${value}%`, String(name)]}
-                        contentStyle={{
-                          borderRadius: 12,
-                          border: '1px solid #e2e8f0',
-                          fontSize: 13,
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+            <div className="sm:col-span-2 xl:col-span-1 rounded-[18px] sm:rounded-[20px] bg-white border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] p-4 sm:p-5 flex flex-col min-h-[240px] sm:min-h-[260px]">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="min-w-0">
+                  <h2 className="text-[16px] sm:text-[18px] font-bold text-[#0f172a]">
+                    Sales by Category
+                  </h2>
+                  <p className="text-[12px] sm:text-[13px] text-[#94a3b8]">{compareLabel}</p>
                 </div>
-                <ul className="flex-1 min-w-0 space-y-2 overflow-y-auto max-h-full pr-1">
-                  {categoryData.map((item) => (
-                    <li key={item.name} className="flex items-center gap-2.5 min-w-0">
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-[13px] lg:text-[14px] text-[#334155] truncate flex-1">
-                        {item.name}
-                      </span>
-                      <span className="text-[13px] lg:text-[14px] font-semibold text-[#64748b] tabular-nums shrink-0">
-                        {item.value}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <button
+                  type="button"
+                  onClick={() => navigate(ROUTES.REPORTS)}
+                  className="w-9 h-9 rounded-full bg-[#0f172a] text-white inline-flex items-center justify-center hover:opacity-90 shrink-0"
+                >
+                  <ArrowUpRight className="w-4 h-4" strokeWidth={2.25} />
+                </button>
               </div>
-            )}
+
+              {loading ? (
+                <div className="flex-1 flex items-center justify-center min-h-[160px]">
+                  <Loader2 className="h-7 w-7 animate-spin text-[#94a3b8]" />
+                </div>
+              ) : (
+                <div className="flex-1 min-h-0 flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mt-1">
+                  <div className="w-full max-w-[180px] aspect-square shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={categoryData}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius="42%"
+                          outerRadius="72%"
+                          paddingAngle={2}
+                          stroke="none"
+                        >
+                          {categoryData.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                          <LabelList
+                            dataKey="value"
+                            position="inside"
+                            formatter={(v) => `${v}%`}
+                            style={{ fill: '#fff', fontSize: 9, fontWeight: 600 }}
+                          />
+                        </Pie>
+                        <Tooltip
+                          formatter={(value, name) => [`${value}%`, String(name)]}
+                          contentStyle={{
+                            borderRadius: 12,
+                            border: '1px solid #e2e8f0',
+                            fontSize: 13,
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <ul className="w-full flex-1 min-w-0 space-y-2.5">
+                    {categoryData.map((item) => (
+                      <li key={item.name} className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <span className="text-[13px] text-[#334155] truncate flex-1">
+                          {item.name}
+                        </span>
+                        <span className="text-[13px] font-semibold text-[#64748b] tabular-nums shrink-0">
+                          {item.value}%
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       </div>

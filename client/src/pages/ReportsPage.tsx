@@ -165,6 +165,7 @@ export default function ReportsPage() {
   const [page, setPage] = useState(1);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
       try {
@@ -172,6 +173,7 @@ export default function ReportsPage() {
           reportsApi.dashboard(),
           billingApi.list(),
         ]);
+        if (cancelled) return;
         setStats({
           netSales: dashboard.netSales ?? dashboard.totalSales ?? 0,
           totalReturns: dashboard.totalReturns ?? 0,
@@ -181,12 +183,15 @@ export default function ReportsPage() {
         });
         setBills(billList as BillRow[]);
       } catch {
-        toast.error('Failed to load analytics');
+        if (!cancelled) toast.error('Failed to load analytics');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
     load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const invoiceIndexById = useMemo(() => {
@@ -292,7 +297,7 @@ export default function ReportsPage() {
   ];
 
   return (
-    <div className="min-h-full h-full flex flex-col bg-[var(--brand-space)] px-6 lg:px-8 py-6">
+    <div className="min-h-full h-full flex flex-col bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
       <div className="w-full flex-1 flex flex-col gap-5 min-h-0">
         <header className="shrink-0">
           <h1 className="text-[28px] font-bold text-[#0f172a] tracking-tight leading-none">

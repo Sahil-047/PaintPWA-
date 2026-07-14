@@ -12,6 +12,9 @@ import type {
   CashMemo,
   CashMemoWithRefs,
   Expense,
+  Painter,
+  PainterWithStats,
+  PainterDetail,
   PaginatedResponse,
   TenantRegistration,
   TenantStatus,
@@ -21,7 +24,16 @@ import type {
 export interface AuthLoginResult {
   token: string;
   user: { _id: string; name: string; email: string; role: string };
-  tenant?: { _id: string; name: string; slug: string; plan: string; status?: TenantStatus };
+  tenant?: {
+    _id: string;
+    name: string;
+    slug: string;
+    plan: string;
+    status?: TenantStatus;
+    phone?: string;
+    address?: string;
+    gstin?: string;
+  };
   isSuperAdmin?: boolean;
 }
 
@@ -47,6 +59,21 @@ function unwrap<T>(res: { data: ApiResponse<T> | { success: boolean; data: T } }
   return res.data.data as T;
 }
 
+/** Share one in-flight promise so StrictMode / remounts don't hit the network twice. */
+const inflightRequests = new Map<string, Promise<unknown>>();
+
+function dedupeRequest<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const existing = inflightRequests.get(key);
+  if (existing) return existing as Promise<T>;
+  const promise = fn().finally(() => {
+    if (inflightRequests.get(key) === promise) {
+      inflightRequests.delete(key);
+    }
+  });
+  inflightRequests.set(key, promise);
+  return promise;
+}
+
 export const authApi = {
   register: (data: {
     shopName: string;
@@ -60,6 +87,30 @@ export const authApi = {
     axiosInstance.post<ApiResponse<AuthLoginResult>>('/auth/login', data),
 
   me: () => axiosInstance.get<ApiResponse<AuthLoginResult>>('/auth/me'),
+
+  updateProfile: async (data: { name: string; email: string }) => {
+    const res = await axiosInstance.patch<
+      ApiResponse<{ user: AuthLoginResult['user'] }>
+    >('/auth/profile', data);
+    return unwrap(res).user;
+  },
+
+  updatePassword: async (data: { currentPassword: string; newPassword: string }) => {
+    const res = await axiosInstance.patch<ApiResponse<{ ok: true }>>('/auth/password', data);
+    return unwrap(res);
+  },
+
+  updateShop: async (data: {
+    name: string;
+    phone?: string;
+    address?: string;
+    gstin?: string;
+  }) => {
+    const res = await axiosInstance.patch<
+      ApiResponse<{ tenant: NonNullable<AuthLoginResult['tenant']> }>
+    >('/auth/shop', data);
+    return unwrap(res).tenant;
+  },
 };
 
 export const adminApi = {
@@ -156,10 +207,11 @@ export const billingApi = {
       pagination: res.data.pagination as PaginationMeta,
     };
   },
-  list: async () => {
-    const res = await axiosInstance.get<ApiResponse<Bill[]>>('/bills');
-    return unwrap(res);
-  },
+  list: () =>
+    dedupeRequest('bills:list', async () => {
+      const res = await axiosInstance.get<ApiResponse<Bill[]>>('/bills');
+      return unwrap(res);
+    }),
   create: (data: {
     customer: { name: string; phone?: string; address?: string; gstin?: string };
     items: Array<{ productId: string; qty: number; rate?: number; size?: string }>;
@@ -207,14 +259,16 @@ export const cashmemoApi = {
 };
 
 export const accountsApi = {
-  list: async () => {
-    const res = await axiosInstance.get<ApiResponse<AccountWithCustomer[]>>('/accounts');
-    return unwrap(res);
-  },
-  customers: async () => {
-    const res = await axiosInstance.get<ApiResponse<Customer[]>>('/accounts/customers');
-    return unwrap(res);
-  },
+  list: () =>
+    dedupeRequest('accounts:list', async () => {
+      const res = await axiosInstance.get<ApiResponse<AccountWithCustomer[]>>('/accounts');
+      return unwrap(res);
+    }),
+  customers: () =>
+    dedupeRequest('accounts:customers', async () => {
+      const res = await axiosInstance.get<ApiResponse<Customer[]>>('/accounts/customers');
+      return unwrap(res);
+    }),
   createCustomer: async (data: {
     name: string;
     phone?: string;
@@ -224,12 +278,13 @@ export const accountsApi = {
     const res = await axiosInstance.post<ApiResponse<Customer>>('/accounts/customers', data);
     return unwrap(res);
   },
-  getCustomer: async (customerId: string) => {
-    const res = await axiosInstance.get<ApiResponse<CustomerDetail>>(
-      `/accounts/customers/${customerId}`
-    );
-    return unwrap(res);
-  },
+  getCustomer: (customerId: string) =>
+    dedupeRequest(`accounts:customer:${customerId}`, async () => {
+      const res = await axiosInstance.get<ApiResponse<CustomerDetail>>(
+        `/accounts/customers/${customerId}`
+      );
+      return unwrap(res);
+    }),
   updateCustomer: async (
     customerId: string,
     data: Partial<{ name: string; phone: string; address: string; gstin: string }>
@@ -264,9 +319,60 @@ export const expensesApi = {
     const res = await axiosInstance.get<ApiResponse<Expense[]>>('/expenses');
     return unwrap(res);
   },
-  create: (data: { category: string; description?: string; amount: number; date?: string }) =>
-    axiosInstance.post('/expenses', data),
-  remove: (id: string) => axiosInstance.delete(`/expenses/${id}`),
+  create: async (data: {
+    category: string;
+    description?: string;
+    amount: number;
+    date?: string;
+    painterId?: string | null;
+  }) => {
+    const res = await axiosInstance.post<ApiResponse<Expense>>('/expenses', data);
+    return unwrap(res);
+  },
+  remove: async (id: string) => {
+    const res = await axiosInstance.delete<ApiResponse<{ deleted: boolean }>>(`/expenses/${id}`);
+    return unwrap(res);
+  },
+};
+
+export const paintersApi = {
+  list: () =>
+    dedupeRequest('painters:list', async () => {
+      const res = await axiosInstance.get<ApiResponse<PainterWithStats[]>>('/painters');
+      return unwrap(res);
+    }),
+  create: async (data: { name: string; phone?: string; notes?: string }) => {
+    const res = await axiosInstance.post<ApiResponse<Painter>>('/painters', data);
+    return unwrap(res);
+  },
+  get: (painterId: string) =>
+    dedupeRequest(`painters:detail:${painterId}`, async () => {
+      const res = await axiosInstance.get<ApiResponse<PainterDetail>>(`/painters/${painterId}`);
+      return unwrap(res);
+    }),
+  update: async (
+    painterId: string,
+    data: Partial<{ name: string; phone: string; notes: string }>
+  ) => {
+    const res = await axiosInstance.patch<ApiResponse<Painter>>(`/painters/${painterId}`, data);
+    return unwrap(res);
+  },
+  remove: async (painterId: string) => {
+    const res = await axiosInstance.delete<ApiResponse<{ deleted: boolean }>>(
+      `/painters/${painterId}`
+    );
+    return unwrap(res);
+  },
+  recordPayment: async (
+    painterId: string,
+    data: { amount: number; description?: string; date?: string }
+  ) => {
+    const res = await axiosInstance.post<ApiResponse<Expense>>(
+      `/painters/${painterId}/payments`,
+      data
+    );
+    return unwrap(res);
+  },
 };
 
 export const reportsApi = {

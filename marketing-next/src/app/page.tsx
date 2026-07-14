@@ -130,12 +130,13 @@ export default function Home() {
   return (
     <div ref={rootRef} className="site-bg text-white">
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-2 text-sm font-semibold tracking-wide text-slate-200">
-          <span className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_18px_2px_rgba(45,212,191,.7)]" />
-          paintsaas
-          </div>
-          <span className="mt-1 text-[11px] text-slate-400">A product of AsthetCSS</span>
+        <div className="flex flex-col gap-1.5">
+          <img
+            src="/logo.png"
+            alt="paintsaas — Premium Paint Shop ERP"
+            className="h-12 w-auto rounded-lg object-contain object-left"
+          />
+          <span className="text-[11px] text-slate-400">A product of AsthetCSS</span>
         </div>
         <a
           href="#contact"

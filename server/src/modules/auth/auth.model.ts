@@ -10,6 +10,9 @@ export interface ITenant extends Document {
   plan: 'free' | 'pro';
   status: TenantStatus;
   rejectionReason?: string;
+  phone?: string;
+  address?: string;
+  gstin?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -25,6 +28,9 @@ const tenantSchema = new Schema<ITenant>(
       default: 'pending',
     },
     rejectionReason: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    address: { type: String, trim: true },
+    gstin: { type: String, trim: true, uppercase: true },
   },
   { timestamps: true }
 );

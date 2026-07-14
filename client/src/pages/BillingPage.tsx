@@ -67,6 +67,17 @@ function stockBadgeClass(qty: number) {
   return 'bg-[#dcfce7] text-[#15803d] border-[#bbf7d0]';
 }
 
+function baseBadgeClass(base?: string) {
+  if (!base) return 'bg-[#f1f5f9] text-[#64748b] border-[#e2e8f0]';
+  if (/silver/i.test(base)) return 'bg-[#e8eaed] text-[#475569] border-[#d1d5db]';
+  return 'bg-[#eff6ff] text-[#2563eb] border-[#bfdbfe]';
+}
+
+/** Fixed product-table column template (matches billing mock proportions). */
+/** Desktop table columns; mobile uses a card layout instead. */
+const PRODUCT_COLS =
+  'hidden md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(100px,1fr)_minmax(72px,0.7fr)_minmax(90px,0.85fr)_64px]';
+
 function sizeSummary(product: Product) {
   const opts = getProductSizeOptions(product);
   if (opts.length === 0) return { total: 0, label: '—' };
@@ -316,20 +327,21 @@ export default function BillingPage() {
   }
 
   return (
-    <div className="p-8">
-      <div className="relative overflow-hidden rounded-[20px] bg-white border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.06)] mb-6">
-        <div className="absolute inset-y-0 right-0 w-[55%] bg-gradient-to-l from-[#eff6ff] via-[#f0f9ff] to-transparent pointer-events-none" />
-        <div className="relative flex flex-col lg:flex-row items-center justify-between gap-6 px-10 py-9">
-          <div className="flex-1 max-w-lg">
-            <h1 className="text-[32px] font-bold text-[#0f172a] tracking-tight mb-2.5 leading-tight">
+    <div className="min-h-full bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8">
+      <div className="relative overflow-hidden rounded-[18px] sm:rounded-[20px] bg-white border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.06)] mb-5 sm:mb-6">
+        <div className="absolute inset-y-0 right-0 w-[55%] bg-gradient-to-l from-[#eff6ff] via-[#f0f9ff] to-transparent pointer-events-none hidden sm:block" />
+        <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 sm:gap-6 px-5 sm:px-8 lg:px-10 py-6 sm:py-8 lg:py-9">
+          <div className="flex-1 max-w-lg w-full">
+            <h1 className="text-[26px] sm:text-[30px] lg:text-[32px] font-bold text-[#0f172a] tracking-tight mb-2 leading-tight">
               Billing & Payments
             </h1>
-            <p className="text-[#64748b] text-[15px] leading-relaxed mb-6 max-w-md">
-              Add products by pack size (50ml, 1L, 4L…), then generate invoices with customer details.
+            <p className="text-[#64748b] text-[14px] sm:text-[15px] leading-relaxed mb-5 sm:mb-6 max-w-md">
+              Manage your cash flow, track pending invoices, and review payment history all in one
+              serene place.
             </p>
             <Button
               onClick={openCheckout}
-              className="rounded-full bg-gradient-to-r from-[#2563eb] to-[#3b82f6] hover:from-[#1d4ed8] hover:to-[#2563eb] text-white px-7 h-11 text-[15px] font-semibold shadow-[0_4px_14px_rgba(37,99,235,0.4)] gap-2 border-0"
+              className="rounded-full bg-gradient-to-r from-[#2563eb] to-[#3b82f6] hover:from-[#1d4ed8] hover:to-[#2563eb] text-white px-6 sm:px-7 h-11 text-[14px] sm:text-[15px] font-semibold shadow-[0_4px_14px_rgba(37,99,235,0.4)] gap-2 border-0 w-full sm:w-auto"
             >
               <Plus className="w-4 h-4" strokeWidth={2.5} />
               Create Invoice
@@ -341,171 +353,237 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-5">
-        <div>
-          <div className="relative mb-4">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-[#94a3b8]" strokeWidth={2.25} />
-            <Input type="text"
-              placeholder="Search products by name, brand, code or base"
-              value={searchQuery}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-              className="pl-12 h-[52px] rounded-full bg-[#f1f5f9] border-0 shadow-none text-[14px] text-[#334155] placeholder:text-[#94a3b8] focus-visible:ring-[#2563eb]/30"
-            />
+      <div className="relative mb-4">
+        <Search
+          className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 h-[18px] w-[18px] text-[#94a3b8]"
+          strokeWidth={2.25}
+        />
+        <Input
+          type="text"
+          placeholder="Search products by name, brand, code or base"
+          value={searchQuery}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+          className="pl-11 sm:pl-12 h-12 sm:h-[52px] rounded-full bg-[#f1f5f9] border-0 shadow-none text-[14px] text-[#334155] placeholder:text-[#94a3b8] focus-visible:ring-[#2563eb]/30"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-4 sm:gap-5 items-start">
+        <div className="bg-white rounded-[18px] sm:rounded-[20px] border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.05)] overflow-hidden flex flex-col min-h-[420px] sm:min-h-[520px] xl:h-[640px]">
+          <div
+            className={cn(
+              'gap-3 px-4 sm:px-6 py-4 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#94a3b8] shrink-0',
+              PRODUCT_COLS
+            )}
+          >
+            <span>Product</span>
+            <span>Brand</span>
+            <span>Base</span>
+            <span>Price</span>
+            <span className="text-right">Stock</span>
           </div>
 
-          <div className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.05)] overflow-hidden">
-            <div className="grid grid-cols-[minmax(0,2fr)_1fr_1.2fr_72px] gap-3 px-6 py-4 border-b border-[#f1f5f9] text-[13px] font-semibold text-[#94a3b8]">
-              <span>Product</span>
-              <span>Brand</span>
-              <span>Pack sizes (stock)</span>
-              <span className="text-right">Add</span>
-            </div>
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {loading ? (
+              <div className="flex justify-center py-20">
+                <Loader2 className="h-7 w-7 animate-spin text-[#cbd5e1]" />
+              </div>
+            ) : products.length === 0 ? (
+              <div className="text-center py-20 px-6 text-[#94a3b8] text-sm">No products found</div>
+            ) : (
+              products.map((product) => {
+                const { total } = sizeSummary(product);
+                const inCart = cartQtyForProduct(product._id);
+                return (
+                  <div key={product._id} className="border-b border-dashed border-[#e2e8f0] last:border-0">
+                    {/* Mobile card */}
+                    <div className="md:hidden px-4 py-4 flex gap-3">
+                      <ProductImage
+                        src={product.productImage}
+                        alt={product.name}
+                        className="w-12 h-12 rounded-xl shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-[#0f172a] text-[14px] leading-snug">
+                          {product.name}
+                        </p>
+                        <p className="text-[12px] text-[#64748b] mt-0.5 truncate">
+                          {productBrandLabel(product) || '—'}
+                          {product.base ? ` · ${product.base}` : ''}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span
+                            className={cn(
+                              'inline-flex min-w-[32px] justify-center px-2 py-0.5 rounded-full text-[11px] font-bold border',
+                              stockBadgeClass(total)
+                            )}
+                          >
+                            {total}
+                          </span>
+                          <span className="text-[12px] text-[#94a3b8]">Set at billing</span>
+                          {inCart > 0 && (
+                            <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#dcfce7] text-[#15803d]">
+                              {inCart} in cart
+                            </span>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={total === 0}
+                            onClick={() => startAddProduct(product)}
+                            className="h-7 ml-auto rounded-md border-[#2563eb] text-[#2563eb] hover:bg-[#eff6ff] text-[11px] font-medium px-2.5"
+                          >
+                            <Plus className="w-3 h-3 mr-0.5" strokeWidth={2.5} />
+                            Add
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
 
-            <div className="max-h-[540px] overflow-y-auto">
-              {loading ? (
-                <div className="flex justify-center py-20">
-                  <Loader2 className="h-7 w-7 animate-spin text-[#cbd5e1]" />
-                </div>
-              ) : products.length === 0 ? (
-                <div className="text-center py-20 px-6 text-[#94a3b8] text-sm">No products found</div>
-              ) : (
-                products.map((product) => {
-                  const { total, label } = sizeSummary(product);
-                  const inCart = cartQtyForProduct(product._id);
-                  const sizeOpts = getProductSizeOptions(product);
-                  return (
+                    {/* Desktop row */}
                     <div
-                      key={product._id}
-                      className="grid grid-cols-[minmax(0,2fr)_1fr_1.2fr_72px] gap-3 items-center px-6 py-[18px] border-b border-dashed border-[#e2e8f0] last:border-0"
+                      className={cn(
+                        'gap-3 items-center px-4 sm:px-6 py-[16px]',
+                        PRODUCT_COLS
+                      )}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <ProductImage
                           src={product.productImage}
                           alt={product.name}
-                          className="w-12 h-12 rounded-xl"
+                          className="w-11 h-11 rounded-xl shrink-0"
                         />
                         <div className="min-w-0">
-                          <p className="font-semibold text-[#0f172a] text-[14px] leading-snug">
+                          <p className="font-semibold text-[#0f172a] text-[14px] leading-snug truncate">
                             {product.name}
                           </p>
-                          {productVariantLabel(product) && (
-                            <span className="inline-flex mt-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-[#eff6ff] text-[#2563eb] border border-[#bfdbfe]">
-                              {productVariantLabel(product)}
-                            </span>
-                          )}
-                          {inCart > 0 && (
-                            <span className="inline-flex ml-1.5 mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#dcfce7] text-[#15803d]">
-                              {inCart} in cart
-                            </span>
-                          )}
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={total === 0}
+                              onClick={() => startAddProduct(product)}
+                              className="h-7 rounded-md border-[#2563eb] text-[#2563eb] hover:bg-[#eff6ff] text-[11px] font-medium px-2"
+                            >
+                              <Plus className="w-3 h-3 mr-0.5" strokeWidth={2.5} />
+                              Add
+                            </Button>
+                            {inCart > 0 && (
+                              <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#dcfce7] text-[#15803d]">
+                                {inCart} in cart
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <span className="text-[13px] text-[#64748b] truncate">
-                        {productBrandLabel(product)}
+                        {productBrandLabel(product) || '—'}
                       </span>
-                      <div className="min-w-0">
-                        <p className="text-[11px] text-[#64748b] leading-snug truncate" title={label}>
-                          {label}
-                        </p>
+                      <div>
+                        {product.base ? (
+                          <span
+                            className={cn(
+                              'inline-flex max-w-full truncate px-2.5 py-0.5 rounded-full text-[11px] font-semibold border',
+                              baseBadgeClass(product.base)
+                            )}
+                            title={product.base}
+                          >
+                            {product.base}
+                          </span>
+                        ) : (
+                          <span className="text-[13px] text-[#94a3b8]">—</span>
+                        )}
+                      </div>
+                      <span className="text-[13px] text-[#94a3b8]">Set at billing</span>
+                      <div className="flex justify-end">
                         <span
                           className={cn(
-                            'inline-flex mt-1 min-w-[28px] justify-center px-2 py-0.5 rounded-full text-[11px] font-bold border',
+                            'inline-flex min-w-[36px] justify-center px-2.5 py-0.5 rounded-full text-[12px] font-bold border',
                             stockBadgeClass(total)
                           )}
+                          title={sizeSummary(product).label}
                         >
                           {total}
                         </span>
                       </div>
-                      <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={total === 0}
-                          onClick={() => startAddProduct(product)}
-                          className="h-8 rounded-lg border-[#2563eb] text-[#2563eb] hover:bg-[#eff6ff] text-xs font-medium"
-                        >
-                          {sizeOpts.length > 1 ? 'Size' : 'Add'}
-                        </Button>
-                      </div>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
 
-            {!loading && products.length > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-[#f1f5f9] bg-[#fafafa]">
-                <p className="text-xs text-[#64748b]">
-                  Showing {products.length} of {pagination.total} products
-                  {debouncedSearch ? ` · “${debouncedSearch}”` : ''}
-                </p>
-                <div className="flex gap-2">
+          {!loading && products.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 sm:px-6 py-3.5 border-t border-[#f1f5f9] bg-[#fafafa] shrink-0">
+              <p className="text-xs text-[#64748b]">
+                Showing {products.length} of {pagination.total} products
+                {debouncedSearch ? ` · “${debouncedSearch}”` : ''}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1 || loadingMore}
+                  onClick={() => loadProducts(page - 1, false)}
+                  className="h-8 rounded-lg text-xs"
+                >
+                  Previous
+                </Button>
+                <span className="flex items-center px-2 text-xs text-[#64748b] tabular-nums">
+                  {pagination.page} / {pagination.pages}
+                </span>
+                {page < pagination.pages ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={page <= 1 || loadingMore}
-                    onClick={() => loadProducts(page - 1, false)}
+                    disabled={loadingMore}
+                    onClick={loadNextPage}
                     className="h-8 rounded-lg text-xs"
                   >
-                    Previous
+                    {loadingMore ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      'Load more'
+                    )}
                   </Button>
-                  <span className="flex items-center px-2 text-xs text-[#64748b] tabular-nums">
-                    {pagination.page} / {pagination.pages}
-                  </span>
-                  {page < pagination.pages ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={loadingMore}
-                      onClick={loadNextPage}
-                      className="h-8 rounded-lg text-xs"
-                    >
-                      {loadingMore ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        'Load more'
-                      )}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled
-                      className="h-8 rounded-lg text-xs opacity-50"
-                    >
-                      End
-                    </Button>
-                  )}
-                </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled
+                    className="h-8 rounded-lg text-xs opacity-50"
+                  >
+                    End
+                  </Button>
+                )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        <div className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.05)] p-6 xl:sticky xl:top-6 h-fit">
-          <div className="flex items-center justify-between mb-5 pb-4 border-b border-[#f1f5f9]">
+        <div className="bg-white rounded-[18px] sm:rounded-[20px] border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.05)] p-4 sm:p-6 xl:sticky xl:top-6 flex flex-col min-h-[360px] sm:min-h-[420px] xl:h-[640px] w-full xl:w-[320px]">
+          <div className="flex items-center justify-between mb-5 pb-4 border-b border-[#f1f5f9] shrink-0">
             <div className="flex items-center gap-2.5">
               <ShoppingCart className="w-5 h-5 text-[#334155]" strokeWidth={2.25} />
               <h3 className="font-bold text-[#0f172a] text-[16px]">Cart</h3>
             </div>
             <span className="text-[12px] font-medium text-[#64748b] bg-[#f1f5f9] px-3 py-1 rounded-full">
-              {cart.length} line{cart.length !== 1 ? 's' : ''}
+              {cart.length} item{cart.length !== 1 ? 's' : ''}
             </span>
           </div>
 
           {cart.length === 0 ? (
-            <div className="text-center py-14 text-[#94a3b8]">
-              <ShoppingCart className="h-11 w-11 mx-auto mb-3 opacity-30" strokeWidth={1.75} />
-              <p className="text-sm">Cart is empty</p>
-              <p className="text-xs mt-1">Pick a pack size when adding products</p>
+            <div className="flex-1 flex flex-col items-center justify-center text-center text-[#94a3b8] px-2">
+              <ShoppingCart className="h-12 w-12 mb-3 opacity-30" strokeWidth={1.75} />
+              <p className="text-sm">Oops! looks like your cart is empty</p>
             </div>
           ) : (
             <>
-              <div className="space-y-0 mb-2 max-h-[340px] overflow-y-auto">
+              <div className="space-y-0 mb-2 flex-1 min-h-0 overflow-y-auto">
                 {cart.map((item) => {
                   const product = products.find((p) => p._id === item.productId);
                   const sizeOptions = product ? getProductSizeOptions(product) : [];
@@ -605,7 +683,7 @@ export default function BillingPage() {
                 })}
               </div>
 
-              <div className="space-y-2.5 text-[14px] pt-4 border-t border-dashed border-[#e2e8f0]">
+              <div className="space-y-2.5 text-[14px] pt-4 border-t border-dashed border-[#e2e8f0] shrink-0">
                 <div className="flex justify-between text-[#64748b]">
                   <span>Subtotal</span>
                   <span className="font-semibold text-[#0f172a]">₹ {subtotal.toFixed(2)}</span>
@@ -646,7 +724,7 @@ export default function BillingPage() {
               <Button
                 variant="outline"
                 onClick={openCheckout}
-                className="w-full mt-5 h-12 rounded-xl border-[#0f172a] bg-white hover:bg-[#f8fafc] text-[#0f172a] font-semibold gap-2"
+                className="w-full mt-5 h-12 rounded-xl border-[#0f172a] bg-white hover:bg-[#f8fafc] text-[#0f172a] font-semibold gap-2 shrink-0"
               >
                 <FileText className="w-4 h-4" strokeWidth={2.25} />
                 Generate Invoice

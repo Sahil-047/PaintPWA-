@@ -13,6 +13,8 @@ import InventoryPage from '@/pages/InventoryPage';
 import ReportsPage from '@/pages/ReportsPage';
 import AccountsPage from '@/pages/AccountsPage';
 import CustomerDetailsPage from '@/pages/CustomerDetailsPage';
+import PaintersPage from '@/pages/PaintersPage';
+import PainterDetailsPage from '@/pages/PainterDetailsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import SeoHead from '@/components/SeoHead';
 
@@ -62,6 +64,11 @@ const SEO_CONFIG: Record<string, { title: string; description: string; robots?: 
     description: 'Manage customer dues and ledgers in Paint ERP.',
     robots: 'noindex, nofollow',
   },
+  [ROUTES.PAINTERS]: {
+    title: 'Painters',
+    description: 'Manage painters, labour payments, and shop expenses in Paint ERP.',
+    robots: 'noindex, nofollow',
+  },
   [ROUTES.SETTINGS]: {
     title: 'Settings',
     description: 'Configure your Paint ERP workspace settings.',
@@ -78,6 +85,12 @@ function AppSeo() {
           description: 'View customer ledger, invoices, and payments in Paint ERP.',
           robots: 'noindex, nofollow',
         }
+      : location.pathname.startsWith('/painters/') && location.pathname !== '/painters'
+        ? {
+            title: 'Painter Details',
+            description: 'View painter payments and labour expense history in Paint ERP.',
+            robots: 'noindex, nofollow',
+          }
       : {
           title: 'Paint ERP',
           description: 'Paint ERP for inventory, billing, and customer account management.',
@@ -118,6 +131,8 @@ export default function App() {
             <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
             <Route path={ROUTES.ACCOUNTS} element={<AccountsPage />} />
             <Route path={ROUTES.ACCOUNT_DETAIL} element={<CustomerDetailsPage />} />
+            <Route path={ROUTES.PAINTERS} element={<PaintersPage />} />
+            <Route path={ROUTES.PAINTER_DETAIL} element={<PainterDetailsPage />} />
             <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
           </Route>
         </Route>

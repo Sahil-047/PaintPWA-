@@ -827,8 +827,8 @@ export default function InventoryPage() {
   return (
     <div className="min-h-full bg-[#f8fafc]">
       {/* Top bar */}
-      <div className="sticky top-0 z-20 bg-white border-b border-[#e2e8f0] px-6 lg:px-8 py-4">
-        <div className="flex items-center justify-between gap-4">
+      <div className="sticky top-0 z-20 bg-white border-b border-[#e2e8f0] px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
           <p className="text-[13px] text-[#64748b] font-medium shrink-0 hidden sm:block">{breadcrumb}</p>
           <div className="relative flex-1 max-w-md mx-auto hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
@@ -863,7 +863,7 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      <div className="px-6 lg:px-8 py-6 space-y-6">
+      <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 space-y-5 sm:space-y-6">
         {/* ── Brands view ── */}
         {showBrandsView && (
           <>
@@ -915,9 +915,9 @@ export default function InventoryPage() {
               />
             </div>
 
-            <section className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-sm overflow-x-auto">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-5 border-b border-[#f1f5f9]">
-                <div className="relative flex-1 max-w-md">
+            <section className="bg-white rounded-[18px] sm:rounded-[20px] border border-[#e2e8f0] shadow-sm overflow-x-auto">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 sm:p-5 border-b border-[#f1f5f9]">
+                <div className="relative flex-1 min-w-0 max-w-full lg:max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
                   <Input
                     placeholder="Search by brand name"
@@ -947,7 +947,7 @@ export default function InventoryPage() {
                 </div>
               </div>
 
-              <Table>
+              <Table className="min-w-[720px]">
                 <TableHeader>
                   <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide pl-6">Brand</TableHead>
@@ -1113,7 +1113,7 @@ export default function InventoryPage() {
                     placeholder="Search product types..."
                     value={typeSearch}
                     onChange={(e) => setTypeSearch(e.target.value)}
-                    className="pl-9 h-10 w-[220px] rounded-xl border-[#e2e8f0] text-sm"
+                    className="pl-9 h-10 w-full min-w-0 sm:w-[220px] rounded-xl border-[#e2e8f0] text-sm"
                   />
                 </div>
                 <Button
@@ -1198,9 +1198,9 @@ export default function InventoryPage() {
 
         {/* ── Products table ── */}
         {selectedBrand && selectedType && (
-          <section className="bg-white rounded-[20px] border border-[#e2e8f0] shadow-sm overflow-x-auto">
-            <div className="p-6 border-b border-[#f1f5f9]">
-              <nav className="text-[13px] text-[#64748b] mb-3">
+          <section className="bg-white rounded-[18px] sm:rounded-[20px] border border-[#e2e8f0] shadow-sm overflow-x-auto">
+            <div className="p-4 sm:p-6 border-b border-[#f1f5f9]">
+              <nav className="text-[13px] text-[#64748b] mb-3 overflow-x-auto whitespace-nowrap">
                 <span className="cursor-pointer hover:text-[#2563eb]" onClick={goToBrands}>
                   Inventory
                 </span>
@@ -1213,12 +1213,12 @@ export default function InventoryPage() {
               </nav>
 
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={backToTypes}
-                    className="rounded-xl border-[#e2e8f0] h-9 px-3 text-[#64748b]"
+                    className="rounded-xl border-[#e2e8f0] h-9 px-3 text-[#64748b] shrink-0"
                   >
                     <ChevronLeft className="w-4 h-4 mr-1" /> Types
                   </Button>
@@ -1234,7 +1234,7 @@ export default function InventoryPage() {
                         setProductSearch(e.target.value);
                         setProductPage(1);
                       }}
-                      className="pl-9 h-10 w-[200px] rounded-xl border-[#e2e8f0] text-sm"
+                      className="pl-9 h-10 w-full min-w-0 sm:w-[200px] rounded-xl border-[#e2e8f0] text-sm"
                     />
                   </div>
                   <Button
@@ -1247,7 +1247,7 @@ export default function InventoryPage() {
               </div>
             </div>
 
-            <Table>
+            <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                   <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Product</TableHead>
@@ -1627,7 +1627,7 @@ export default function InventoryPage() {
             <DialogTitle>{editingProductId ? 'Edit product' : 'Add product'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Name</Label>
                 <Input value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} className="rounded-xl" />
@@ -1637,7 +1637,7 @@ export default function InventoryPage() {
                 <Input value={productForm.productCode} onChange={(e) => setProductForm({ ...productForm, productCode: e.target.value })} className="rounded-xl" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Base (optional)</Label>
                 <Input value={productForm.base} onChange={(e) => setProductForm({ ...productForm, base: e.target.value })} className="rounded-xl" />
@@ -1653,7 +1653,7 @@ export default function InventoryPage() {
             </div>
             <div>
               <Label className="mb-2 block">Stock by size</Label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {PAINT_SIZES.map((size) => (
                   <div key={size} className="space-y-1">
                     <Label className="text-xs text-[#64748b]">{size}</Label>
@@ -1675,7 +1675,7 @@ export default function InventoryPage() {
             </div>
             <div>
               <Label className="mb-2 block">Price by size (₹)</Label>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {PAINT_SIZES.map((size) => (
                   <div key={size} className="space-y-1">
                     <Label className="text-xs text-[#64748b]">{size}</Label>

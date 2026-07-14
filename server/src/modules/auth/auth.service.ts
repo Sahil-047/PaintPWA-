@@ -4,7 +4,7 @@ import { Types } from 'mongoose';
 import { env } from '../../config/env.js';
 import { AppError } from '../../utils/appError.js';
 import { TenantModel, UserModel } from './auth.model.js';
-import type { LoginInput, RegisterInput } from './auth.validator.js';
+import type { LoginInput, RegisterInput, UpdatePasswordInput, UpdateProfileInput, UpdateShopInput } from './auth.validator.js';
 
 interface JwtPayload {
   id: string;
@@ -34,6 +34,9 @@ function serializeTenant(tenant: {
   slug: string;
   plan: string;
   status: string;
+  phone?: string;
+  address?: string;
+  gstin?: string;
 }) {
   return {
     _id: tenant._id,
@@ -41,6 +44,9 @@ function serializeTenant(tenant: {
     slug: tenant.slug,
     plan: tenant.plan,
     status: tenant.status,
+    phone: tenant.phone ?? '',
+    address: tenant.address ?? '',
+    gstin: tenant.gstin ?? '',
   };
 }
 
@@ -135,4 +141,59 @@ export async function getMe(userId: Types.ObjectId) {
     tenant: serializeTenant(tenant),
     isSuperAdmin: false as const,
   };
+}
+
+export async function updateProfile(userId: Types.ObjectId, input: UpdateProfileInput) {
+  const email = input.email.toLowerCase();
+  const taken = await UserModel.findOne({
+    email,
+    _id: { $ne: userId },
+  });
+  if (taken) throw new AppError('Email already in use', 409);
+
+  const user = await UserModel.findByIdAndUpdate(
+    userId,
+    { name: input.name.trim(), email },
+    { new: true, runValidators: true }
+  );
+  if (!user) throw new AppError('User not found', 404);
+
+  return { _id: user._id, name: user.name, email: user.email, role: user.role };
+}
+
+export async function updatePassword(userId: Types.ObjectId, input: UpdatePasswordInput) {
+  const user = await UserModel.findById(userId).select('+passwordHash');
+  if (!user) throw new AppError('User not found', 404);
+
+  if (!(await user.comparePassword(input.currentPassword))) {
+    throw new AppError('Current password is incorrect', 400);
+  }
+
+  user.passwordHash = await bcrypt.hash(input.newPassword, 10);
+  await user.save();
+  return { ok: true as const };
+}
+
+export async function updateShop(
+  tenantId: Types.ObjectId,
+  role: string,
+  input: UpdateShopInput
+) {
+  if (role !== 'admin') {
+    throw new AppError('Only shop admins can edit shop details', 403);
+  }
+
+  const tenant = await TenantModel.findOneAndUpdate(
+    { _id: tenantId },
+    {
+      name: input.name.trim(),
+      phone: (input.phone ?? '').trim(),
+      address: (input.address ?? '').trim(),
+      gstin: (input.gstin ?? '').trim().toUpperCase(),
+    },
+    { new: true, runValidators: true }
+  );
+  if (!tenant) throw new AppError('Shop not found', 404);
+
+  return serializeTenant(tenant);
 }

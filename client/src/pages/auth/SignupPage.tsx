@@ -14,12 +14,12 @@ import {
   Link2,
   Lock,
   Mail,
-  Palette,
   Sparkles,
   User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/config/config';
+import BrandLogo from '@/components/BrandLogo';
 
 function slugify(value: string) {
   return value
@@ -102,9 +102,8 @@ export default function SignupPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#0f172a]/70 via-transparent to-[#0f172a]/10" />
 
         <div className="relative z-10 h-full flex flex-col justify-between p-8 sm:p-10 lg:p-12 text-white">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3.5 py-1.5 text-sm font-medium backdrop-blur-md border border-white/20 w-fit">
-            <Palette className="size-4 text-sky-200" strokeWidth={2.25} />
-            <span>Paint ERP</span>
+          <div className="w-fit">
+            <BrandLogo height={52} className="rounded-lg" />
           </div>
 
           <div className="my-8 lg:my-0">

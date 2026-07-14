@@ -5,7 +5,16 @@ import type { TenantStatus } from '@paint-saas/shared-types';
 interface AuthState {
   token: string | null;
   user: { _id: string; name: string; email: string; role: string } | null;
-  tenant: { _id: string; name: string; slug: string; plan: string; status?: TenantStatus } | null;
+  tenant: {
+    _id: string;
+    name: string;
+    slug: string;
+    plan: string;
+    status?: TenantStatus;
+    phone?: string;
+    address?: string;
+    gstin?: string;
+  } | null;
   isSuperAdmin: boolean;
   setAuth: (
     token: string,

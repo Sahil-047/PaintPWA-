@@ -6,6 +6,7 @@ import type { CreateExpenseInput } from './expenses.validator.js';
 export async function listExpenses(tenantId: Types.ObjectId) {
   return ExpenseModel.find({ tenantId })
     .populate('addedBy', 'name')
+    .populate('painterId', 'name')
     .sort({ date: -1 });
 }
 
@@ -14,6 +15,14 @@ export async function createExpense(
   userId: Types.ObjectId,
   input: CreateExpenseInput
 ) {
+  // Painter labour payments must go through /painters/:id/payments so they stay linked.
+  if (input.category === 'Painter' && !input.painterId) {
+    throw new AppError(
+      'Add painter payments from the Painters tab (per painter), not as a general expense',
+      400
+    );
+  }
+
   return ExpenseModel.create({
     tenantId,
     addedBy: userId,
@@ -21,6 +30,7 @@ export async function createExpense(
     description: input.description ?? '',
     amount: input.amount,
     date: input.date ?? new Date(),
+    painterId: input.painterId ? new Types.ObjectId(input.painterId) : null,
   });
 }
 

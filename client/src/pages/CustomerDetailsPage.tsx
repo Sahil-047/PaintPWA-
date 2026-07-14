@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -174,14 +174,28 @@ function SummaryCard({
   );
 }
 
-type TxRow = {
+type BillRow = {
   bill: BillWithPayments;
-  itemIndex: number;
   productName: string;
   volume: string;
   qty: number;
   amount: number;
+  payments: { id: string; date: string; mode: string; amount: number }[];
 };
+
+function paymentModeLabel(mode: string) {
+  const m = mode.trim().toLowerCase();
+  if (m === 'cash') return 'Paid in cash';
+  if (m === 'upi') return 'Paid in UPI';
+  if (m === 'card') return 'Paid in card';
+  if (m === 'cheque' || m === 'check') return 'Paid in cheque';
+  if (m === 'bank' || m === 'bank transfer') return 'Paid by bank';
+  return `Paid in ${mode || 'other'}`;
+}
+
+function memoBillId(memo: { billId: { _id: string } | string }): string {
+  return typeof memo.billId === 'string' ? memo.billId : memo.billId._id;
+}
 
 export default function CustomerDetailsPage() {
   const { customerId } = useParams<{ customerId: string }>();
@@ -191,26 +205,30 @@ export default function CustomerDetailsPage() {
   const [detail, setDetail] = useState<CustomerDetail | null>(null);
   const [tab, setTab] = useState<TxTab>('all');
   const [search, setSearch] = useState('');
-  const [datePreset, setDatePreset] = useState<DatePreset>('this-month');
+  const [datePreset, setDatePreset] = useState<DatePreset>('all');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  const load = useCallback(async () => {
-    if (!customerId) return;
-    setLoading(true);
-    try {
-      const data = await accountsApi.getCustomer(customerId);
-      setDetail(data);
-    } catch {
-      toast.error('Failed to load customer details');
-      setDetail(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [customerId]);
-
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      if (!customerId) return;
+      setLoading(true);
+      try {
+        const data = await accountsApi.getCustomer(customerId);
+        if (!cancelled) setDetail(data);
+      } catch {
+        if (!cancelled) {
+          toast.error('Failed to load customer details');
+          setDetail(null);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId]);
 
   const dateRange = useMemo(() => getPresetRange(datePreset), [datePreset]);
 
@@ -231,7 +249,15 @@ export default function CustomerDetailsPage() {
 
   const rows = useMemo(() => {
     const bills = detail?.bills ?? [];
-    const list: TxRow[] = [];
+    const memos = detail?.memos ?? [];
+    const list: BillRow[] = [];
+
+    const memosByBill = new Map<string, typeof memos>();
+    for (const memo of memos) {
+      const id = memoBillId(memo);
+      if (!memosByBill.has(id)) memosByBill.set(id, []);
+      memosByBill.get(id)!.push(memo);
+    }
 
     for (const bill of bills) {
       if (!inRange(bill.createdAt, dateRange.from, dateRange.to)) continue;
@@ -239,16 +265,41 @@ export default function CustomerDetailsPage() {
       if (tab === 'paid' && !paid) continue;
       if (tab === 'unpaid' && paid) continue;
 
-      const items = bill.items?.length ? bill.items : [{ productName: '—', qty: 0, total: bill.grandTotal, productId: '', rate: 0 }];
-      items.forEach((item, idx) => {
-        list.push({
-          bill,
-          itemIndex: idx,
-          productName: item.productName,
-          volume: parseVolume(item.productName),
-          qty: item.qty ?? 0,
-          amount: item.total ?? bill.grandTotal ?? 0,
-        });
+      const items = bill.items ?? [];
+      const first = items[0];
+      const productName =
+        items.length === 0
+          ? (bill.amountPaid ?? 0) > 0 && (bill.grandTotal ?? 0) === 0
+            ? 'Advance / credit payment'
+            : 'No line items'
+          : items.length === 1
+            ? first.productName
+            : `${first.productName} +${items.length - 1} more`;
+
+      const qty = items.reduce((s, i) => s + (i.qty ?? 0), 0) || (first?.qty ?? 0);
+      const volume =
+        items.length === 1
+          ? parseVolume(first?.productName)
+          : items.length > 1
+            ? `${items.length} items`
+            : '—';
+
+      const billMemos = [...(memosByBill.get(bill._id) ?? [])].sort(
+        (a, b) => new Date(a.paidAt).getTime() - new Date(b.paidAt).getTime()
+      );
+
+      list.push({
+        bill,
+        productName,
+        volume,
+        qty,
+        amount: bill.grandTotal || bill.amountPaid || 0,
+        payments: billMemos.map((m) => ({
+          id: m._id,
+          date: m.paidAt,
+          mode: m.paymentMode,
+          amount: m.amountPaid,
+        })),
       });
     }
 
@@ -259,7 +310,8 @@ export default function CustomerDetailsPage() {
           (r) =>
             r.bill.billNo.toLowerCase().includes(q) ||
             invoiceLabel(r.bill.billNo).toLowerCase().includes(q) ||
-            r.productName.toLowerCase().includes(q)
+            r.productName.toLowerCase().includes(q) ||
+            r.payments.some((p) => paymentModeLabel(p.mode).toLowerCase().includes(q))
         );
 
     return filtered.sort(
@@ -273,9 +325,9 @@ export default function CustomerDetailsPage() {
 
   function exportCsv() {
     const header = ['Date', 'Invoice No.', 'Details', 'Volume(L)', 'QTY', 'Amount', 'Status'];
-    const lines = rows.map((r) => {
+    const lines = rows.flatMap((r) => {
       const paid = r.bill.status === 'paid' || (r.bill.balanceDue ?? 0) <= 0;
-      return [
+      const main = [
         shortDate(r.bill.createdAt),
         invoiceLabel(r.bill.billNo),
         `"${r.productName.replace(/"/g, '""')}"`,
@@ -284,6 +336,18 @@ export default function CustomerDetailsPage() {
         String(r.amount),
         paid ? 'Paid' : 'Unpaid',
       ].join(',');
+      const payments = r.payments.map((p) =>
+        [
+          shortDate(p.date),
+          '',
+          `"${paymentModeLabel(p.mode)}"`,
+          '',
+          '',
+          String(p.amount),
+          'Payment',
+        ].join(',')
+      );
+      return [main, ...payments];
     });
     const blob = new Blob([[header.join(','), ...lines].join('\n')], {
       type: 'text/csv;charset=utf-8;',
@@ -300,18 +364,18 @@ export default function CustomerDetailsPage() {
   const customer = detail?.customer;
 
   return (
-    <div className="min-h-full bg-[var(--brand-space)] px-5 sm:px-6 lg:px-8 py-5 lg:py-6">
+    <div className="min-h-full bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 lg:py-6">
       <div className="w-full max-w-[1400px] mx-auto space-y-5 lg:space-y-6">
         <header className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => navigate(ROUTES.ACCOUNTS)}
-            className="w-9 h-9 rounded-xl border border-[#e2e8f0] bg-white text-[#64748b] inline-flex items-center justify-center hover:bg-[#f8fafc]"
+            className="w-9 h-9 rounded-xl border border-[#e2e8f0] bg-white text-[#64748b] inline-flex items-center justify-center hover:bg-[#f8fafc] shrink-0"
             aria-label="Back to accounts"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={2.25} />
           </button>
-          <h1 className="text-[28px] lg:text-[32px] font-bold text-[#0f172a] tracking-tight">
+          <h1 className="text-[24px] sm:text-[28px] lg:text-[32px] font-bold text-[#0f172a] tracking-tight">
             Customer Details
           </h1>
         </header>
@@ -432,16 +496,10 @@ export default function CustomerDetailsPage() {
                         <SelectValue />
                       </div>
                     </SelectTrigger>
-                    <SelectContent className="">
-                      <SelectItem className="" value="this-month">
-                        {getPresetRange('this-month').label}
-                      </SelectItem>
-                      <SelectItem className="" value="last-month">
-                        {getPresetRange('last-month').label}
-                      </SelectItem>
-                      <SelectItem className="" value="all">
-                        All time
-                      </SelectItem>
+                    <SelectContent>
+                      <SelectItem value="this-month">This month</SelectItem>
+                      <SelectItem value="last-month">Last month</SelectItem>
+                      <SelectItem value="all">All time</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -456,7 +514,7 @@ export default function CustomerDetailsPage() {
 
               <div className="bg-white rounded-[16px] border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] overflow-hidden">
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="min-w-[760px]">
                     <TableHeader>
                       <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                         <TableHead className="pl-5 text-[#64748b] font-semibold text-xs uppercase tracking-wide w-[140px]">
@@ -490,44 +548,47 @@ export default function CustomerDetailsPage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        rows.map((row) => {
+                        rows.flatMap((row) => {
                           const paid =
                             row.bill.status === 'paid' || (row.bill.balanceDue ?? 0) <= 0;
-                          const isFirst = row.itemIndex === 0;
-                          const billExpanded = expanded[row.bill._id];
-                          const multi = (row.bill.items?.length ?? 0) > 1;
+                          const billExpanded = !!expanded[row.bill._id];
+                          const canExpand = row.payments.length > 0;
 
-                          if (!isFirst && !billExpanded) return null;
-
-                          return (
+                          const mainRow = (
                             <TableRow
-                              key={`${row.bill._id}-${row.itemIndex}`}
+                              key={row.bill._id}
                               className="border-b border-dotted border-[#e2e8f0] hover:bg-[#f8fafc]/60"
                             >
                               <TableCell className="pl-5 text-[14px] text-[#334155] whitespace-nowrap">
-                                {isFirst ? (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-1.5"
-                                    onClick={() => multi && toggleExpand(row.bill._id)}
-                                  >
-                                    {multi && (
-                                      <ChevronDown
-                                        className={cn(
-                                          'w-4 h-4 text-[#94a3b8] transition-transform',
-                                          billExpanded && 'rotate-180'
-                                        )}
-                                      />
-                                    )}
-                                    {!multi && <span className="w-4" />}
-                                    {shortDate(row.bill.createdAt)}
-                                  </button>
-                                ) : (
-                                  <span className="pl-6 text-[#94a3b8]">↳</span>
-                                )}
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1.5"
+                                  disabled={!canExpand}
+                                  onClick={() => canExpand && toggleExpand(row.bill._id)}
+                                  aria-expanded={canExpand ? billExpanded : undefined}
+                                  aria-label={
+                                    canExpand
+                                      ? billExpanded
+                                        ? 'Hide payment details'
+                                        : 'Show payment details'
+                                      : undefined
+                                  }
+                                >
+                                  {canExpand ? (
+                                    <ChevronDown
+                                      className={cn(
+                                        'w-4 h-4 text-[#94a3b8] transition-transform',
+                                        billExpanded && 'rotate-180'
+                                      )}
+                                    />
+                                  ) : (
+                                    <span className="w-4" />
+                                  )}
+                                  {shortDate(row.bill.createdAt)}
+                                </button>
                               </TableCell>
                               <TableCell className="text-[14px] font-medium text-[#0f172a] whitespace-nowrap">
-                                {isFirst ? invoiceLabel(row.bill.billNo) : ''}
+                                {invoiceLabel(row.bill.billNo)}
                               </TableCell>
                               <TableCell className="text-[14px] text-[#334155] max-w-[280px] truncate">
                                 {row.productName}
@@ -540,21 +601,48 @@ export default function CustomerDetailsPage() {
                                 {Math.round(row.amount).toLocaleString('en-IN')}
                               </TableCell>
                               <TableCell className="pr-5">
-                                {isFirst && (
-                                  <span
-                                    className={cn(
-                                      'inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold',
-                                      paid
-                                        ? 'bg-[#dcfce7] text-[#15803d]'
-                                        : 'bg-[#fee2e2] text-[#dc2626]'
-                                    )}
-                                  >
-                                    {paid ? 'Paid' : 'Unpaid'}
-                                  </span>
-                                )}
+                                <span
+                                  className={cn(
+                                    'inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold',
+                                    paid
+                                      ? 'bg-[#dcfce7] text-[#15803d]'
+                                      : 'bg-[#fee2e2] text-[#dc2626]'
+                                  )}
+                                >
+                                  {paid ? 'Paid' : 'Unpaid'}
+                                </span>
                               </TableCell>
                             </TableRow>
                           );
+
+                          if (!canExpand || !billExpanded) return [mainRow];
+
+                          const paymentRows = row.payments.map((p) => (
+                            <TableRow
+                              key={`${row.bill._id}-${p.id}`}
+                              className="border-b border-dotted border-[#e2e8f0] bg-[#f8fafc]"
+                            >
+                              <TableCell className="pl-5 text-[14px] text-[#64748b] whitespace-nowrap">
+                                <span className="inline-flex items-center gap-1.5 pl-5">
+                                  {shortDate(p.date)}
+                                </span>
+                              </TableCell>
+                              <TableCell />
+                              <TableCell className="text-[14px]">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[12px] font-semibold bg-[#dcfce7] text-[#15803d]">
+                                  {paymentModeLabel(p.mode)}
+                                </span>
+                              </TableCell>
+                              <TableCell />
+                              <TableCell />
+                              <TableCell className="text-[14px] font-semibold text-[#0f172a] tabular-nums">
+                                {Math.round(p.amount).toLocaleString('en-IN')}
+                              </TableCell>
+                              <TableCell className="pr-5" />
+                            </TableRow>
+                          ));
+
+                          return [mainRow, ...paymentRows];
                         })
                       )}
                     </TableBody>

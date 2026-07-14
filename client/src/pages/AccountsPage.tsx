@@ -173,8 +173,24 @@ export default function AccountsPage() {
   }, []);
 
   useEffect(() => {
-    loadAccounts();
-  }, [loadAccounts]);
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [accountList, billList] = await Promise.all([accountsApi.list(), billingApi.list()]);
+        if (cancelled) return;
+        setAccounts(accountList);
+        setBills(billList);
+      } catch {
+        if (!cancelled) toast.error('Failed to load accounts');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const monthRanges = useMemo(() => {
     const now = new Date();
@@ -317,23 +333,23 @@ export default function AccountsPage() {
   }
 
   return (
-    <div className="min-h-full bg-[var(--brand-space)] px-5 sm:px-6 lg:px-8 py-5 lg:py-6">
+    <div className="min-h-full bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 lg:py-6">
       <div className="w-full max-w-[1400px] mx-auto space-y-5 lg:space-y-6">
         <header className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => window.history.back()}
-            className="w-9 h-9 rounded-xl border border-[#e2e8f0] bg-white text-[#64748b] inline-flex items-center justify-center hover:bg-[#f8fafc]"
+            className="w-9 h-9 rounded-xl border border-[#e2e8f0] bg-white text-[#64748b] inline-flex items-center justify-center hover:bg-[#f8fafc] shrink-0"
             aria-label="Back"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={2.25} />
           </button>
-          <h1 className="text-[28px] lg:text-[32px] font-bold text-[#0f172a] tracking-tight">
+          <h1 className="text-[24px] sm:text-[28px] lg:text-[32px] font-bold text-[#0f172a] tracking-tight">
             Accounts
           </h1>
         </header>
 
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-5">
+        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
           <SummaryCard
             label="Total Orders"
             amount={summary.totalOrders}
@@ -364,7 +380,7 @@ export default function AccountsPage() {
         </section>
 
         <section className="space-y-4">
-          <div className="flex items-center gap-6 border-b border-[#e2e8f0]">
+          <div className="flex items-center gap-4 sm:gap-6 border-b border-[#e2e8f0] overflow-x-auto">
             {([
               ['all', 'All'],
               ['active', 'Active'],
@@ -375,7 +391,7 @@ export default function AccountsPage() {
                 type="button"
                 onClick={() => setStatusTab(key)}
                 className={cn(
-                  'pb-3 text-[14px] font-semibold border-b-2 -mb-px transition-colors',
+                  'pb-3 text-[14px] font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap shrink-0',
                   statusTab === key
                     ? 'text-[#2563eb] border-[#2563eb]'
                     : 'text-[#94a3b8] border-transparent hover:text-[#64748b]'
@@ -387,7 +403,7 @@ export default function AccountsPage() {
           </div>
 
           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
               <Input
                 type="text"
@@ -399,7 +415,7 @@ export default function AccountsPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
               <Select value={statusTab} onValueChange={(v: string) => setStatusTab(v as StatusTab)}>
-                <SelectTrigger className="h-11 rounded-xl border-[#e2e8f0] bg-white w-[120px] text-[#64748b]">
+                <SelectTrigger className="h-11 rounded-xl border-[#e2e8f0] bg-white w-full sm:w-[120px] text-[#64748b]">
                   <div className="flex items-center gap-2">
                     <Filter className="w-4 h-4" />
                     <SelectValue placeholder="Filter" />
@@ -413,7 +429,7 @@ export default function AccountsPage() {
               </Select>
 
               <Select value={sortBy} onValueChange={(v: string) => setSortBy(v as SortKey)}>
-                <SelectTrigger className="h-11 rounded-xl border-[#e2e8f0] bg-white w-[130px] text-[#64748b]">
+                <SelectTrigger className="h-11 rounded-xl border-[#e2e8f0] bg-white w-full sm:w-[130px] text-[#64748b]">
                   <div className="flex items-center gap-2">
                     <ArrowUpDown className="w-4 h-4" />
                     <SelectValue placeholder="Sort by" />
@@ -430,12 +446,15 @@ export default function AccountsPage() {
               <Button
                 onClick={() => setAddOpen(true)}
                 variant="outline"
-                className="h-11 rounded-xl border-[#e2e8f0] bg-white text-[#334155] gap-2"
+                className="h-11 rounded-xl border-[#e2e8f0] bg-white text-[#334155] gap-2 flex-1 sm:flex-none"
               >
                 <Plus className="w-4 h-4" /> Add
               </Button>
 
-              <Button onClick={exportCsv} className={cn('h-11 rounded-xl gap-2 px-5', btnPrimary)}>
+              <Button
+                onClick={exportCsv}
+                className={cn('h-11 rounded-xl gap-2 px-5 flex-1 sm:flex-none', btnPrimary)}
+              >
                 <Upload className="w-4 h-4" /> Export
               </Button>
             </div>
@@ -443,7 +462,7 @@ export default function AccountsPage() {
 
           <div className="bg-white rounded-[16px] border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] overflow-hidden">
             <div className="overflow-x-auto">
-              <Table>
+              <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                     <TableHead className="pl-6 text-[#64748b] font-semibold text-xs uppercase tracking-wide">

@@ -8,5 +8,8 @@ router.post('/register', authController.register);
 router.post('/superadmin', authController.bootstrapSuperAdmin);
 router.post('/login', authController.login);
 router.get('/me', authMiddleware, authController.me);
+router.patch('/profile', authMiddleware, authController.updateProfile);
+router.patch('/password', authMiddleware, authController.updatePassword);
+router.patch('/shop', authMiddleware, authController.updateShop);
 
 export default router;

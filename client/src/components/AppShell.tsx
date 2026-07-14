@@ -1,14 +1,19 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutGrid,
   Package,
   Receipt,
   Users,
+  Paintbrush,
   BarChart3,
   Settings,
   LogOut,
+  Menu,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import BrandLogo from '@/components/BrandLogo';
 import { ROUTES } from '@/config/config';
 import { useAuthStore } from '@/store/auth.store';
 import { cn } from '@/lib/utils';
@@ -21,24 +26,20 @@ const navItems = [
   { label: 'Inventory', path: ROUTES.INVENTORY, icon: Package },
   { label: 'Invoices', path: ROUTES.BILLING, icon: Receipt },
   { label: 'Accounts', path: ROUTES.ACCOUNTS, icon: Users },
+  { label: 'Painters', path: ROUTES.PAINTERS, icon: Paintbrush },
   { label: 'Analytics', path: ROUTES.REPORTS, icon: BarChart3 },
   { label: 'Settings', path: ROUTES.SETTINGS, icon: Settings },
 ];
 
-function LogoCube() {
-  return (
-    <svg viewBox="0 0 40 40" className="w-10 h-10 shrink-0" aria-hidden>
-      <path d="M20 4 L36 14 V30 L20 40 L4 30 V14 Z" fill="#b3caf2" opacity="0.95" />
-      <path d="M20 4 L20 22 L36 14 V14 Z" fill="#1358fa" />
-      <path d="M20 22 L20 40 L4 30 V14 Z" fill="#7aa0e8" />
-      <path d="M20 4 L4 14 L20 22 L36 14 Z" fill="#f2f9ff" />
-    </svg>
-  );
-}
-
 export default function AppShell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   function handleLogout() {
     logout();
@@ -46,71 +47,110 @@ export default function AppShell() {
     navigate(ROUTES.HOME);
   }
 
+  const sidebar = (
+    <>
+      <div className="px-1 mb-8 lg:mb-10">
+        <BrandLogo height={52} className="max-w-full rounded-md" />
+      </div>
+
+      <nav className="space-y-1.5 flex-1">
+        {navItems.map(({ label, path, icon: Icon }) => (
+          <NavLink
+            key={path}
+            to={path}
+            end={path === ROUTES.DASHBOARD}
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3.5 px-4 py-3 rounded-[14px] text-[15px] font-medium transition-all',
+                isActive
+                  ? 'bg-[var(--brand-primary)] text-white shadow-[0_4px_14px_rgba(19,88,250,0.35)]'
+                  : 'text-black/55 hover:bg-[var(--brand-tertiary)] hover:text-[var(--brand-text)]'
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <Icon
+                  className={cn('w-5 h-5 shrink-0', isActive ? 'text-white' : 'text-black/40')}
+                  strokeWidth={ICON_STROKE}
+                />
+                {label}
+              </>
+            )}
+          </NavLink>
+        ))}
+      </nav>
+
+      <div className="pt-5 mt-5 border-t border-[var(--brand-secondary)]/30">
+        <div className="flex items-center gap-3 px-1 mb-3">
+          <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-sm font-bold shrink-0">
+            {(user?.name?.[0] ?? 'A').toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[var(--brand-text)] truncate">
+              {user?.name ?? 'admin'}
+            </p>
+            <p className="text-xs text-black/45 truncate">Administrator</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleLogout}
+          className="w-full gap-2 border-[var(--brand-secondary)]/50 text-black/50 hover:text-red-600 hover:border-red-200 hover:bg-red-50"
+        >
+          <LogOut className="w-4 h-4" strokeWidth={ICON_STROKE} />
+          Logout
+        </Button>
+      </div>
+    </>
+  );
+
   return (
     <div className="h-screen bg-[var(--brand-space)] flex overflow-hidden">
-      <aside className="w-[240px] shrink-0 bg-white border-r border-[var(--brand-secondary)]/35 flex flex-col py-7 px-5">
-        <div className="flex items-center gap-3 px-1 mb-10">
-          <LogoCube />
-          <div>
-            <p className="font-bold text-[var(--brand-text)] text-[15px] leading-tight">Paint ERP</p>
-            <p className="text-[11px] text-black/45 leading-snug mt-0.5">
-              Enterprise Resource Planning
-            </p>
-          </div>
-        </div>
-
-        <nav className="space-y-1.5 flex-1">
-          {navItems.map(({ label, path, icon: Icon }) => (
-            <NavLink
-              key={path}
-              to={path}
-              end={path === ROUTES.DASHBOARD}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3.5 px-4 py-3 rounded-[14px] text-[15px] font-medium transition-all',
-                  isActive
-                    ? 'bg-[var(--brand-primary)] text-white shadow-[0_4px_14px_rgba(19,88,250,0.35)]'
-                    : 'text-black/55 hover:bg-[var(--brand-tertiary)] hover:text-[var(--brand-text)]'
-                )
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon
-                    className={cn('w-5 h-5 shrink-0', isActive ? 'text-white' : 'text-black/40')}
-                    strokeWidth={ICON_STROKE}
-                  />
-                  {label}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="pt-5 mt-5 border-t border-[var(--brand-secondary)]/30">
-          <div className="flex items-center gap-3 px-1 mb-3">
-            <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-sm font-bold shrink-0">
-              {(user?.name?.[0] ?? 'A').toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-[var(--brand-text)] truncate">{user?.name ?? 'admin'}</p>
-              <p className="text-xs text-black/45 truncate">Administrator</p>
-            </div>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleLogout}
-            className="w-full gap-2 border-[var(--brand-secondary)]/50 text-black/50 hover:text-red-600 hover:border-red-200 hover:bg-red-50"
-          >
-            <LogOut className="w-4 h-4" strokeWidth={ICON_STROKE} />
-            Logout
-          </Button>
-        </div>
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex w-[240px] shrink-0 bg-white border-r border-[var(--brand-secondary)]/35 flex-col py-7 px-5">
+        {sidebar}
       </aside>
 
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Close menu"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="absolute inset-y-0 left-0 w-[min(280px,86vw)] bg-white shadow-xl flex flex-col py-6 px-4">
+            <div className="flex items-center justify-end mb-2">
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="h-9 w-9 rounded-xl border border-[#e2e8f0] inline-flex items-center justify-center text-[#64748b]"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {sidebar}
+          </aside>
+        </div>
+      )}
+
       <main className="flex-1 min-w-0 min-h-0 h-full overflow-hidden bg-[var(--brand-space)] flex flex-col">
-        <div className="flex-1 min-h-0 h-full overflow-auto">
+        <div className="lg:hidden shrink-0 flex items-center gap-3 px-4 py-3 border-b border-[#e2e8f0] bg-white">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="h-10 w-10 rounded-xl border border-[#e2e8f0] inline-flex items-center justify-center text-[#334155]"
+            aria-label="Open menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <BrandLogo height={40} className="max-w-[220px] rounded-md" />
+        </div>
+        <div className="flex-1 min-h-0 h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <Outlet />
         </div>
       </main>

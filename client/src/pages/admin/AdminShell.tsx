@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/config/config';
 import { useAuthStore } from '@/store/auth.store';
+import BrandLogo from '@/components/BrandLogo';
 import type { TenantStatus } from '@paint-saas/shared-types';
 
 export type AdminView = TenantStatus | 'all';
@@ -62,14 +63,9 @@ export function AdminShell({
       {/* Sidebar — Notion-style */}
       <aside className="w-[240px] shrink-0 flex flex-col border-r border-[rgba(55,53,47,0.09)] bg-[#F7F6F3]">
         <div className="px-3 pt-4 pb-3">
-          <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[rgba(55,53,47,0.06)] transition-colors cursor-default">
-            <div className="w-7 h-7 rounded-md bg-[#37352F] flex items-center justify-center text-white text-xs font-semibold">
-              P
-            </div>
-            <div className="min-w-0">
-              <p className="text-[13px] font-semibold truncate leading-tight">Paint Platform</p>
-              <p className="text-[11px] text-[#9B9A97] leading-tight">Super Admin</p>
-            </div>
+          <div className="px-2 py-1.5">
+            <BrandLogo height={44} className="max-w-full rounded-md" />
+            <p className="text-[11px] text-[#9B9A97] leading-tight mt-1.5 px-0.5">Super Admin</p>
           </div>
         </div>
 
