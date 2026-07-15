@@ -5,7 +5,9 @@ import {
   Package,
   Receipt,
   Users,
+  Undo2,
   Paintbrush,
+  Wallet,
   BarChart3,
   Settings,
   LogOut,
@@ -24,9 +26,11 @@ const ICON_STROKE = 2.25;
 const navItems = [
   { label: 'Dashboard', path: ROUTES.DASHBOARD, icon: LayoutGrid },
   { label: 'Inventory', path: ROUTES.INVENTORY, icon: Package },
-  { label: 'Invoices', path: ROUTES.BILLING, icon: Receipt },
+  { label: 'Billing', path: ROUTES.BILLING, icon: Receipt },
   { label: 'Accounts', path: ROUTES.ACCOUNTS, icon: Users },
+  { label: 'Returns', path: ROUTES.RETURNS, icon: Undo2 },
   { label: 'Painters', path: ROUTES.PAINTERS, icon: Paintbrush },
+  { label: 'Expenses', path: ROUTES.EXPENSES, icon: Wallet },
   { label: 'Analytics', path: ROUTES.REPORTS, icon: BarChart3 },
   { label: 'Settings', path: ROUTES.SETTINGS, icon: Settings },
 ];
@@ -47,7 +51,7 @@ export default function AppShell() {
     navigate(ROUTES.HOME);
   }
 
-  const sidebar = (
+  const sidebarNav = (
     <>
       <div className="px-1 mb-8 lg:mb-10">
         <BrandLogo height={52} className="max-w-full rounded-md" />
@@ -80,37 +84,14 @@ export default function AppShell() {
           </NavLink>
         ))}
       </nav>
-
-      <div className="pt-5 mt-5 border-t border-[var(--brand-secondary)]/30">
-        <div className="flex items-center gap-3 px-1 mb-3">
-          <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-sm font-bold shrink-0">
-            {(user?.name?.[0] ?? 'A').toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-[var(--brand-text)] truncate">
-              {user?.name ?? 'admin'}
-            </p>
-            <p className="text-xs text-black/45 truncate">Administrator</p>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleLogout}
-          className="w-full gap-2 border-[var(--brand-secondary)]/50 text-black/50 hover:text-red-600 hover:border-red-200 hover:bg-red-50"
-        >
-          <LogOut className="w-4 h-4" strokeWidth={ICON_STROKE} />
-          Logout
-        </Button>
-      </div>
     </>
   );
 
   return (
     <div className="h-screen bg-[var(--brand-space)] flex overflow-hidden">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — nav only */}
       <aside className="hidden lg:flex w-[240px] shrink-0 bg-white border-r border-[var(--brand-secondary)]/35 flex-col py-7 px-5">
-        {sidebar}
+        {sidebarNav}
       </aside>
 
       {/* Mobile drawer */}
@@ -133,23 +114,49 @@ export default function AppShell() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            {sidebar}
+            {sidebarNav}
           </aside>
         </div>
       )}
 
       <main className="flex-1 min-w-0 min-h-0 h-full overflow-hidden bg-[var(--brand-space)] flex flex-col">
-        <div className="lg:hidden shrink-0 flex items-center gap-3 px-4 py-3 border-b border-[#e2e8f0] bg-white">
+        <header className="shrink-0 flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-3 border-b border-[#e2e8f0] bg-white">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="h-10 w-10 rounded-xl border border-[#e2e8f0] inline-flex items-center justify-center text-[#334155]"
+            className="lg:hidden h-10 w-10 rounded-xl border border-[#e2e8f0] inline-flex items-center justify-center text-[#334155] shrink-0"
             aria-label="Open menu"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <BrandLogo height={40} className="max-w-[220px] rounded-md" />
-        </div>
+          <div className="lg:hidden min-w-0">
+            <BrandLogo height={40} className="max-w-[180px] sm:max-w-[220px] rounded-md" />
+          </div>
+
+          <div className="ml-auto flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-sm font-bold shrink-0">
+                {(user?.name?.[0] ?? 'A').toUpperCase()}
+              </div>
+              <div className="min-w-0 hidden sm:block">
+                <p className="text-sm font-semibold text-[var(--brand-text)] truncate max-w-[160px] lg:max-w-[220px]">
+                  {user?.name ?? 'admin'}
+                </p>
+                <p className="text-xs text-black/45 truncate">Administrator</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="gap-2 shrink-0 border-[var(--brand-secondary)]/50 text-black/50 hover:text-red-600 hover:border-red-200 hover:bg-red-50"
+            >
+              <LogOut className="w-4 h-4" strokeWidth={ICON_STROKE} />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
+          </div>
+        </header>
+
         <div className="flex-1 min-h-0 h-full overflow-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <Outlet />
         </div>

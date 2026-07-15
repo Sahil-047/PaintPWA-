@@ -9,6 +9,7 @@ const router = Router();
 router.use(authMiddleware, approvedTenantMiddleware, tenantMiddleware);
 
 router.get('/dashboard', reportsController.dashboard);
+router.get('/overview', reportsController.overview);
 router.get('/snapshots', reportsController.snapshots);
 router.get('/snapshots/:period', reportsController.snapshotByPeriod);
 

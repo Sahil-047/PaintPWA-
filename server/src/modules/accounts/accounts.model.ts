@@ -7,8 +7,6 @@ export interface IAccount extends Document {
   totalPaid: number;
   dueBalance: number;
   creditBalance: number;
-  bills: Types.ObjectId[];
-  memos: Types.ObjectId[];
   lastActivityAt: Date;
 }
 
@@ -20,8 +18,6 @@ const accountSchema = new Schema<IAccount>(
     totalPaid: { type: Number, default: 0, min: 0 },
     dueBalance: { type: Number, default: 0, min: 0 },
     creditBalance: { type: Number, default: 0, min: 0 },
-    bills: [{ type: Schema.Types.ObjectId, ref: 'Bill' }],
-    memos: [{ type: Schema.Types.ObjectId, ref: 'CashMemo' }],
     lastActivityAt: { type: Date, default: Date.now },
   },
   { timestamps: true }

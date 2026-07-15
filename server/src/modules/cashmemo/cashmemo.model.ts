@@ -26,5 +26,7 @@ const cashMemoSchema = new Schema<ICashMemo>(
 );
 
 cashMemoSchema.index({ tenantId: 1, memoNo: 1 }, { unique: true });
+cashMemoSchema.index({ tenantId: 1, customerId: 1, paidAt: -1 });
+cashMemoSchema.index({ tenantId: 1, billId: 1 });
 
 export const CashMemoModel = mongoose.model<ICashMemo>('CashMemo', cashMemoSchema);

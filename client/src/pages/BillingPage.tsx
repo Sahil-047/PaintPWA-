@@ -16,7 +16,7 @@ import AddToCartSizeDialog, {
   type SizeOption,
 } from '@/components/AddToCartSizeDialog';
 import ProductImage from '@/components/ProductImage';
-import { billingApi, type PaginationMeta } from '@/api';
+import { billingApi, cashmemoApi, type PaginationMeta } from '@/api';
 import type { Product } from '@paint-saas/shared-types';
 import { PAINT_SIZES } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
@@ -298,7 +298,7 @@ export default function BillingPage() {
     }
     setSubmitting(true);
     try {
-      await billingApi.create({
+      const result = await billingApi.create({
         customer: payload.customer,
         items: cart.map((i) => ({
           productId: i.productId,
@@ -310,12 +310,40 @@ export default function BillingPage() {
         amountPaid: payload.amountPaid,
         paymentMode: payload.paymentMode,
       });
-      toast.success('Invoice created successfully!');
+      const billTotal = Math.max(
+        0,
+        cart.reduce((s, i) => s + i.price * i.quantity, 0) - discountNum
+      );
+      if (payload.amountPaid <= 0) {
+        toast.success('Invoice created — full amount due');
+      } else if (payload.amountPaid < billTotal) {
+        toast.success('Invoice created — give the payment challan to the customer');
+      } else {
+        toast.success('Invoice created — paid in full (challan ready)');
+      }
       setCart([]);
       setCheckoutOpen(false);
       setDiscount('0');
       setDiscountChecked(false);
       await loadProducts(1, false);
+
+      // Open invoice PDF; if money was received, also open cash memo challan as customer proof
+      const billId = result.bill?._id;
+      const memoId = result.cashMemo?._id;
+      if (billId) {
+        try {
+          await billingApi.openPdf(billId, result.bill.billNo);
+        } catch {
+          /* non-blocking */
+        }
+      }
+      if (memoId) {
+        try {
+          await cashmemoApi.openPdf(memoId);
+        } catch {
+          /* non-blocking */
+        }
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -755,6 +783,7 @@ export default function BillingPage() {
         onSubmit={handleCheckout}
         submitting={submitting}
       />
+
     </div>
   );
 }

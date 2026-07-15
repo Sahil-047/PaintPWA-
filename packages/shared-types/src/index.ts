@@ -151,8 +151,6 @@ export interface Account {
   totalPaid: number;
   dueBalance: number;
   creditBalance: number;
-  bills: string[];
-  memos: string[];
   lastActivityAt: string;
 }
 
@@ -164,6 +162,8 @@ export interface BillWithPayments extends Bill {
   amountPaid: number;
   balanceDue: number;
   billCredit?: number;
+  /** Sum of return amounts recorded against this bill */
+  returnedAmount?: number;
 }
 
 export interface CashMemoWithRefs extends Omit<CashMemo, 'billId' | 'customerId'> {
@@ -176,6 +176,7 @@ export interface CustomerDetail {
   account: Account | null;
   bills: BillWithPayments[];
   memos: CashMemoWithRefs[];
+  returns: ReturnItem[];
 }
 
 export interface ReturnItem {
@@ -246,6 +247,33 @@ export interface ReportSnapshot {
   totalDue: number;
   totalExpenses: number;
   topProducts: Array<{ productId: string; name: string; qty: number; revenue: number }>;
+}
+
+/** Home dashboard — single overview payload */
+export type DashboardPeriod = 'this-month' | 'last-month' | 'this-week';
+
+export interface DashboardTrend {
+  pct: string;
+  up: boolean;
+}
+
+export interface DashboardOverview {
+  period: DashboardPeriod;
+  compareLabel: string;
+  metrics: {
+    revenue: number;
+    revenueTrend: DashboardTrend;
+    orders: number;
+    ordersTrend: DashboardTrend;
+    customers: number;
+    customersTrend: DashboardTrend;
+    netProfit: number;
+    profitTrend: DashboardTrend;
+  };
+  awaitingBills: number;
+  waitingCustomers: number;
+  revenueBars: Array<{ key: string; label: string; value: number }>;
+  categoryData: Array<{ name: string; value: number; color: string }>;
 }
 
 // API responses

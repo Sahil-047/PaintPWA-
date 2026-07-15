@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { BillModel } from '../billing/billing.model.js';
 import { CashMemoModel } from '../cashmemo/cashmemo.model.js';
+import { ReturnItemModel } from '../returns/returns.model.js';
 import { syncAccountLedger } from './account-ledger.js';
 import { AccountModel, type IAccount } from './accounts.model.js';
 import { CustomerModel } from './customer.model.js';
@@ -48,7 +49,7 @@ export async function applyCustomerCredit(
 export async function addBillToAccount(
   tenantId: Types.ObjectId,
   customerId: Types.ObjectId,
-  billId: Types.ObjectId,
+  _billId: Types.ObjectId,
   grandTotal: number
 ): Promise<{ account: IAccount; creditApplied: number }> {
   let account = await AccountModel.findOne({ tenantId, customerId });
@@ -61,8 +62,6 @@ export async function addBillToAccount(
       totalPaid: 0,
       dueBalance: grandTotal,
       creditBalance: 0,
-      bills: [billId],
-      memos: [],
       lastActivityAt: new Date(),
     });
     return { account: created, creditApplied: 0 };
@@ -70,9 +69,10 @@ export async function addBillToAccount(
 
   const creditBefore = account.creditBalance;
   account.totalBilled += grandTotal;
-  account.bills.push(billId);
   syncAccountLedger(account);
   await account.save();
+  // Drop legacy embedded id arrays if still present on older docs.
+  await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
   const creditApplied = Number(Math.max(0, creditBefore - account.creditBalance).toFixed(2));
   return { account, creditApplied };
 }
@@ -80,16 +80,16 @@ export async function addBillToAccount(
 export async function addPaymentToAccount(
   tenantId: Types.ObjectId,
   customerId: Types.ObjectId,
-  memoId: Types.ObjectId,
+  _memoId: Types.ObjectId,
   amountPaid: number
 ) {
   const account = await AccountModel.findOne({ tenantId, customerId });
   if (!account) return null;
 
   account.totalPaid += amountPaid;
-  account.memos.push(memoId);
   syncAccountLedger(account);
   await account.save();
+  await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
   return account;
 }
 
@@ -129,12 +129,30 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
   const customer = await CustomerModel.findOne({ _id: customerId, tenantId });
   if (!customer) throw new AppError('Customer not found', 404);
 
-  const account = await AccountModel.findOne({ tenantId, customerId });
+  let account = await AccountModel.findOne({ tenantId, customerId });
   const bills = await BillModel.find({ tenantId, customerId }).sort({ createdAt: -1 });
 
   const memos = await CashMemoModel.find({ tenantId, customerId })
     .populate('billId', 'billNo grandTotal')
     .sort({ paidAt: -1 });
+
+  // Keep ledger aligned with invoice + payment truth (repairs older return sync quirks).
+  if (account) {
+    const billedFromInvoices = Number(
+      bills.reduce((s, b) => s + (b.grandTotal ?? 0), 0).toFixed(2)
+    );
+    const paidFromMemos = Number(memos.reduce((s, m) => s + (m.amountPaid ?? 0), 0).toFixed(2));
+    const billedDrift = Math.abs((account.totalBilled ?? 0) - billedFromInvoices) > 0.009;
+    const paidDrift = Math.abs((account.totalPaid ?? 0) - paidFromMemos) > 0.009;
+    if (billedDrift || paidDrift) {
+      account.totalBilled = billedFromInvoices;
+      account.totalPaid = paidFromMemos;
+      account.creditBalance = 0;
+      syncAccountLedger(account, { absorbOverpay: true });
+      await account.save();
+    }
+    await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
+  }
 
   const billIds = bills.map((b) => b._id);
   const paidAgg =
@@ -147,15 +165,30 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
 
   const paidMap = new Map(paidAgg.map((p) => [String(p._id), p.total as number]));
 
+  const returns = await ReturnItemModel.find({ tenantId, customerId })
+    .populate('billId', 'billNo')
+    .sort({ createdAt: -1 });
+
+  const returnedByBill = new Map<string, number>();
+  for (const ret of returns) {
+    const bid =
+      typeof ret.billId === 'object' && ret.billId && '_id' in ret.billId
+        ? String((ret.billId as { _id: Types.ObjectId })._id)
+        : String(ret.billId);
+    returnedByBill.set(bid, (returnedByBill.get(bid) ?? 0) + (ret.amount ?? 0));
+  }
+
   const billsWithPaid = bills.map((bill) => {
     const amountPaid = paidMap.get(String(bill._id)) ?? 0;
+    const returnedAmount = returnedByBill.get(String(bill._id)) ?? 0;
     return {
       ...bill.toObject(),
       amountPaid,
       balanceDue: Math.max(0, bill.grandTotal - amountPaid),
       billCredit: Math.max(0, amountPaid - bill.grandTotal),
+      returnedAmount,
     };
   });
 
-  return { customer, account, bills: billsWithPaid, memos };
+  return { customer, account, bills: billsWithPaid, memos, returns };
 }

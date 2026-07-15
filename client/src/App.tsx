@@ -15,6 +15,8 @@ import AccountsPage from '@/pages/AccountsPage';
 import CustomerDetailsPage from '@/pages/CustomerDetailsPage';
 import PaintersPage from '@/pages/PaintersPage';
 import PainterDetailsPage from '@/pages/PainterDetailsPage';
+import ExpensesPage from '@/pages/ExpensesPage';
+import ReturnsPage from '@/pages/ReturnsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import SeoHead from '@/components/SeoHead';
 
@@ -64,9 +66,19 @@ const SEO_CONFIG: Record<string, { title: string; description: string; robots?: 
     description: 'Manage customer dues and ledgers in Paint ERP.',
     robots: 'noindex, nofollow',
   },
+  [ROUTES.RETURNS]: {
+    title: 'Returns',
+    description: 'Record product returns against customer invoices in Paint ERP.',
+    robots: 'noindex, nofollow',
+  },
   [ROUTES.PAINTERS]: {
     title: 'Painters',
-    description: 'Manage painters, labour payments, and shop expenses in Paint ERP.',
+    description: 'Manage painters and record labour payments in Paint ERP.',
+    robots: 'noindex, nofollow',
+  },
+  [ROUTES.EXPENSES]: {
+    title: 'Expenses',
+    description: 'Track shop miscellaneous expenses and painter payments in Paint ERP.',
     robots: 'noindex, nofollow',
   },
   [ROUTES.SETTINGS]: {
@@ -131,8 +143,10 @@ export default function App() {
             <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
             <Route path={ROUTES.ACCOUNTS} element={<AccountsPage />} />
             <Route path={ROUTES.ACCOUNT_DETAIL} element={<CustomerDetailsPage />} />
+            <Route path={ROUTES.RETURNS} element={<ReturnsPage />} />
             <Route path={ROUTES.PAINTERS} element={<PaintersPage />} />
             <Route path={ROUTES.PAINTER_DETAIL} element={<PainterDetailsPage />} />
+            <Route path={ROUTES.EXPENSES} element={<ExpensesPage />} />
             <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
           </Route>
         </Route>

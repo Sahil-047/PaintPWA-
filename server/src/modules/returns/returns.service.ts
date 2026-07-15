@@ -29,7 +29,8 @@ export async function createReturn(tenantId: Types.ObjectId, input: CreateReturn
     throw new AppError(`Return qty exceeds billed qty (${line.qty})`, 400);
   }
 
-  const returnAmount = Number((input.qty * line.rate).toFixed(2));
+  const oldGrandTotal = bill.grandTotal;
+  const lineReturnValue = Number((input.qty * line.rate).toFixed(2));
   const updatedQty = Number((line.qty - input.qty).toFixed(4));
   if (updatedQty <= 0) bill.items.splice(idx, 1);
   else {
@@ -39,6 +40,8 @@ export async function createReturn(tenantId: Types.ObjectId, input: CreateReturn
 
   bill.subtotal = Number(bill.items.reduce((sum, it) => sum + it.total, 0).toFixed(2));
   bill.grandTotal = Number(Math.max(0, bill.subtotal - bill.discount).toFixed(2));
+  // Prefer invoice grandTotal delta so discounts stay consistent with account billed.
+  const returnAmount = Number(Math.max(0, oldGrandTotal - bill.grandTotal).toFixed(2)) || lineReturnValue;
 
   const paidAgg = await CashMemoModel.aggregate([
     { $match: { tenantId, billId: bill._id } },
@@ -55,7 +58,8 @@ export async function createReturn(tenantId: Types.ObjectId, input: CreateReturn
   if (account) {
     const creditBefore = account.creditBalance;
     account.totalBilled = Number(Math.max(0, account.totalBilled - returnAmount).toFixed(2));
-    syncAccountLedger(account);
+    // Absorbed paid surplus (e.g. full return on a paid invoice) becomes store credit.
+    syncAccountLedger(account, { absorbOverpay: true });
     creditIssued = Number(Math.max(0, account.creditBalance - creditBefore).toFixed(2));
     await account.save();
   }
@@ -92,4 +96,3 @@ export async function listReturns(tenantId: Types.ObjectId, query: ListReturnsQu
     .populate('customerId', 'name')
     .sort({ createdAt: -1 });
 }
-

@@ -19,6 +19,7 @@ import type {
   TenantRegistration,
   TenantStatus,
   ReturnItem,
+  DashboardOverview,
 } from '@paint-saas/shared-types';
 
 export interface AuthLoginResult {
@@ -212,13 +213,18 @@ export const billingApi = {
       const res = await axiosInstance.get<ApiResponse<Bill[]>>('/bills');
       return unwrap(res);
     }),
-  create: (data: {
+  create: async (data: {
     customer: { name: string; phone?: string; address?: string; gstin?: string };
     items: Array<{ productId: string; qty: number; rate?: number; size?: string }>;
     discount?: number;
     amountPaid?: number;
     paymentMode?: string;
-  }) => axiosInstance.post('/bills', data),
+  }) => {
+    const res = await axiosInstance.post<
+      ApiResponse<{ bill: Bill; cashMemo: CashMemo | null }>
+    >('/bills', data);
+    return unwrap(res);
+  },
   get: (id: string) => axiosInstance.get(`/bills/${id}`),
   openPdf: async (id: string, fileName?: string) => {
     const res = await axiosInstance.get(`/bills/${id}/pdf`, { responseType: 'blob' });
@@ -380,5 +386,12 @@ export const reportsApi = {
     const res = await axiosInstance.get<ApiResponse<DashboardStats>>('/reports/dashboard');
     return unwrap(res);
   },
+  overview: (period: 'this-month' | 'last-month' | 'this-week' = 'this-month') =>
+    dedupeRequest(`reports:overview:${period}`, async () => {
+      const res = await axiosInstance.get<ApiResponse<DashboardOverview>>('/reports/overview', {
+        params: { period },
+      });
+      return unwrap(res);
+    }),
   snapshots: () => axiosInstance.get('/reports/snapshots'),
 };

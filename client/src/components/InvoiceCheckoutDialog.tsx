@@ -111,6 +111,7 @@ export default function InvoiceCheckoutDialog({
   const [issuedDate, setIssuedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [paymentMode, setPaymentMode] = useState('upi');
+  const [amountPaidInput, setAmountPaidInput] = useState('');
   const [invoiceNo] = useState(() => `INV-${Date.now().toString().slice(-4)}`);
 
   useEffect(() => {
@@ -132,16 +133,29 @@ export default function InvoiceCheckoutDialog({
       setIssuedDate(new Date().toISOString().slice(0, 10));
       setDueDate('');
       setPaymentMode('upi');
+      setAmountPaidInput('');
     }
   }, [open]);
 
   const gst = subtotal * 0.18;
-  const grandTotal = Math.max(0, subtotal + gst - discount);
+  /** Must match server Bill.grandTotal (subtotal − discount). GST is display-only. */
+  const billTotal = Math.max(0, subtotal - discount);
+  const amountPaid = Math.min(billTotal, Math.max(0, parseFloat(amountPaidInput) || 0));
+  const balanceDue = Math.max(0, billTotal - amountPaid);
+  const isPartialPayment = amountPaid > 0 && amountPaid < billTotal;
   const fullName = `${firstName} ${lastName}`.trim();
 
+  useEffect(() => {
+    if (!open) return;
+    setAmountPaidInput(billTotal > 0 ? billTotal.toFixed(2) : '');
+  }, [open, billTotal]);
+
   const billedBy = {
-    name: tenant?.name ?? 'Paint ERP',
+    name: tenant?.name?.trim() || 'Shop',
     email: user?.email ?? '',
+    phone: tenant?.phone?.trim() || '',
+    address: tenant?.address?.trim() || '',
+    gstin: tenant?.gstin?.trim() || '',
   };
 
   function applyCustomer(c: Customer) {
@@ -173,6 +187,10 @@ export default function InvoiceCheckoutDialog({
       toast.error('Enter customer name');
       return;
     }
+    if (amountPaid > billTotal) {
+      toast.error('Amount received cannot exceed invoice total');
+      return;
+    }
     await onSubmit({
       customer: {
         name: fullName,
@@ -180,7 +198,7 @@ export default function InvoiceCheckoutDialog({
         address: address || undefined,
         gstin: gstin || undefined,
       },
-      amountPaid: grandTotal,
+      amountPaid,
       paymentMode,
     });
   }
@@ -381,6 +399,50 @@ export default function InvoiceCheckoutDialog({
                 </div>
               </div>
 
+              <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 space-y-3">
+                <div>
+                  <Label className="text-[13px] font-medium text-[#334155]">
+                    Amount received now
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={billTotal}
+                    step="0.01"
+                    value={amountPaidInput}
+                    onChange={(e) => setAmountPaidInput(e.target.value)}
+                    className={cn(inputClass, 'mt-1.5')}
+                  />
+                  <p className="mt-1.5 text-[11px] text-[#64748b]">
+                    Creates a cash memo challan for the customer. Enter less than the bill total for
+                    partial payment; leave 0 if nothing is paid today.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
+                  <span className="text-[#64748b]">
+                    Balance due:{' '}
+                    <span className="font-semibold text-[#dc2626] tabular-nums">
+                      {formatCurrency(balanceDue)}
+                    </span>
+                  </span>
+                  {amountPaid <= 0 && billTotal > 0 && (
+                    <span className="inline-flex rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-semibold text-[#dc2626] border border-[#fecaca]">
+                      Due
+                    </span>
+                  )}
+                  {isPartialPayment && (
+                    <span className="inline-flex rounded-full bg-[#fef9c3] px-2.5 py-0.5 text-[11px] font-semibold text-[#a16207] border border-[#fde047]">
+                      Partial · cash memo
+                    </span>
+                  )}
+                  {amountPaid >= billTotal && billTotal > 0 && (
+                    <span className="inline-flex rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-semibold text-[#15803d] border border-[#bbf7d0]">
+                      Paid · cash memo
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <p className="mb-2 text-[15px] font-semibold text-[#0f172a]">Product Details</p>
                 <div className="rounded-xl border border-[#e2e8f0] overflow-hidden">
@@ -541,6 +603,12 @@ export default function InvoiceCheckoutDialog({
                   {billedBy.email && (
                     <p className="mt-0.5 text-[9px] text-[#64748b] leading-snug">{billedBy.email}</p>
                   )}
+                  {billedBy.phone && (
+                    <p className="mt-0.5 text-[9px] text-[#64748b] leading-snug">{billedBy.phone}</p>
+                  )}
+                  {billedBy.address && (
+                    <p className="mt-0.5 text-[9px] text-[#64748b] leading-snug">{billedBy.address}</p>
+                  )}
                   <p className="mt-0.5 text-[9px] capitalize text-[#64748b]">
                     Payment · {paymentMode}
                   </p>
@@ -553,6 +621,17 @@ export default function InvoiceCheckoutDialog({
                       From
                     </p>
                     <p className="mt-1 text-[10px] font-semibold leading-snug">{billedBy.name}</p>
+                    {billedBy.email && (
+                      <p className="mt-0.5 text-[8px] text-[#64748b] leading-snug">{billedBy.email}</p>
+                    )}
+                    {billedBy.address && (
+                      <p className="mt-0.5 text-[8px] text-[#64748b] leading-snug">{billedBy.address}</p>
+                    )}
+                    {billedBy.gstin && (
+                      <p className="mt-0.5 text-[8px] text-[#64748b] leading-snug">
+                        GSTIN {billedBy.gstin}
+                      </p>
+                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-[#94a3b8]">
@@ -630,8 +709,26 @@ export default function InvoiceCheckoutDialog({
                   )}
                   <div className="flex justify-between border-t border-[#0f172a] pt-2 text-[12px] font-bold text-[#0f172a]">
                     <span>Total</span>
-                    <span className="tabular-nums">{formatCurrency(grandTotal)}</span>
+                    <span className="tabular-nums">{formatCurrency(billTotal)}</span>
                   </div>
+                  {amountPaid > 0 && (
+                    <>
+                      <div className="flex justify-between text-[#16a34a]">
+                        <span>Received</span>
+                        <span className="tabular-nums font-semibold">
+                          {formatCurrency(amountPaid)}
+                        </span>
+                      </div>
+                      {balanceDue > 0 && (
+                        <div className="flex justify-between text-[#dc2626]">
+                          <span>Balance due</span>
+                          <span className="tabular-nums font-semibold">
+                            {formatCurrency(balanceDue)}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <p className="mt-5 text-center text-[8px] leading-relaxed text-[#94a3b8]">

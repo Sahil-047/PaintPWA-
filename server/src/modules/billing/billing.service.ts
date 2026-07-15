@@ -2,13 +2,40 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { generateBillNo } from '../../utils/invoice.number.js';
 import { generateBillPdf } from '../../utils/pdf.generator.js';
-import { buildPdfKey, readPdfByKey, savePdfByKey } from '../../utils/pdf.storage.js';
+import { buildPdfKey, savePdfByKey } from '../../utils/pdf.storage.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { CustomerModel } from '../accounts/customer.model.js';
+import { TenantModel, UserModel } from '../auth/auth.model.js';
 import * as cashmemoService from '../cashmemo/cashmemo.service.js';
 import * as inventoryService from '../inventory/inventory.service.js';
 import { BillModel } from './billing.model.js';
 import type { CreateBillInput } from './billing.validator.js';
+
+/** Shop profile from Settings / tenant — used as invoice “Billed by”. */
+async function getShopBillingIdentity(tenantId: Types.ObjectId) {
+  const [tenant, owner] = await Promise.all([
+    TenantModel.findById(tenantId).lean(),
+    UserModel.findOne({ tenantId, role: 'admin' }).sort({ createdAt: 1 }).lean(),
+  ]);
+
+  const shopName = tenant?.name?.trim() || 'Shop';
+  const email = owner?.email?.trim() || '';
+  const phone = tenant?.phone?.trim() || '';
+  const address = tenant?.address?.trim() || '';
+  const gstin = tenant?.gstin?.trim() || '';
+
+  const addressLines = [address, phone ? `Phone: ${phone}` : '', gstin ? `GSTIN: ${gstin}` : '']
+    .filter(Boolean)
+    .join('\n');
+
+  return {
+    firmName: shopName,
+    billedByName: shopName,
+    billedByEmail: email || undefined,
+    billedByAddress: addressLines || undefined,
+    soldBy: shopName,
+  };
+}
 
 export async function createBill(tenantId: Types.ObjectId, input: CreateBillInput) {
   const customer = await accountsService.upsertCustomer(tenantId, input.customer);
@@ -78,16 +105,19 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   await bill.save();
 
   const customerDoc = await CustomerModel.findById(customer._id);
+  const shop = await getShopBillingIdentity(tenantId);
   const gstRate = 18;
   const gstAmount = 0;
+  const issuedAt = new Date().toISOString();
   const pdfBuffer = await generateBillPdf({
     billNo: bill.billNo,
-    firmName: 'paintapp',
-    billedByName: 'paintapp',
-    billedByEmail: 'hello@asthetcss.com',
-    billedByAddress: 'Business Address',
+    firmName: shop.firmName,
+    billedByName: shop.billedByName,
+    billedByEmail: shop.billedByEmail,
+    billedByAddress: shop.billedByAddress,
     customerName: customerDoc?.name ?? input.customer.name,
     customerEmail: undefined,
+    customerPhone: input.customer.phone ?? customerDoc?.phone ?? undefined,
     customerAddress: input.customer.address ?? customerDoc?.address ?? undefined,
     items: billItems.map((i) => ({
       name: i.productName,
@@ -100,8 +130,12 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     gstAmount,
     discount,
     grandTotal,
-    date: new Date().toISOString(),
-    dueDate: new Date().toISOString(),
+    date: issuedAt,
+    dueDate: issuedAt,
+    status: bill.status,
+    orderRef: bill.billNo,
+    soldBy: shop.soldBy,
+    delivery: 'Store pickup',
   });
 
   const pdfKey = buildPdfKey(String(tenantId), 'bill', bill.billNo);
@@ -142,22 +176,25 @@ export async function getBill(tenantId: Types.ObjectId, billId: string) {
 
 export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
   const bill = await getBill(tenantId, billId);
-  if (bill.pdfUrl) {
-    const cached = await readPdfByKey(bill.pdfUrl);
-    if (cached) return cached;
-  }
-
-  const customer = bill.customerId as { name?: string; address?: string } | null;
+  const customer = bill.customerId as {
+    name?: string;
+    address?: string;
+    phone?: string;
+  } | null;
+  const shop = await getShopBillingIdentity(tenantId);
   const gstRate = 18;
   const gstAmount = 0;
-  const createdAtIso = new Date().toISOString();
+  const createdAt =
+    (bill as { createdAt?: Date }).createdAt?.toISOString?.() ?? new Date().toISOString();
+
   const buffer = await generateBillPdf({
     billNo: bill.billNo,
-    firmName: 'paintapp',
-    billedByName: 'paintapp',
-    billedByEmail: 'hello@asthetcss.com',
-    billedByAddress: 'Business Address',
+    firmName: shop.firmName,
+    billedByName: shop.billedByName,
+    billedByEmail: shop.billedByEmail,
+    billedByAddress: shop.billedByAddress,
     customerName: customer?.name ?? 'Customer',
+    customerPhone: customer?.phone,
     customerAddress: customer?.address,
     items: bill.items.map((i) => ({
       name: i.productName,
@@ -170,8 +207,12 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
     gstAmount,
     discount: bill.discount,
     grandTotal: bill.grandTotal,
-    date: createdAtIso,
-    dueDate: createdAtIso,
+    date: createdAt,
+    dueDate: createdAt,
+    status: bill.status,
+    orderRef: bill.billNo,
+    soldBy: shop.soldBy,
+    delivery: 'Store pickup',
   });
 
   const key = bill.pdfUrl ?? buildPdfKey(String(tenantId), 'bill', bill.billNo);

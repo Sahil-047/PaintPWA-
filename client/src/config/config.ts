@@ -11,8 +11,10 @@ export const ROUTES = {
   REPORTS: '/reports',
   ACCOUNTS: '/accounts',
   ACCOUNT_DETAIL: '/accounts/:customerId',
+  RETURNS: '/returns',
   PAINTERS: '/painters',
   PAINTER_DETAIL: '/painters/:painterId',
+  EXPENSES: '/expenses',
   SETTINGS: '/settings',
 } as const;
 

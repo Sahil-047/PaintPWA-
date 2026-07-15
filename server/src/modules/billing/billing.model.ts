@@ -48,5 +48,6 @@ const billSchema = new Schema<IBill>(
 
 billSchema.index({ tenantId: 1, billNo: 1 }, { unique: true });
 billSchema.index({ tenantId: 1, createdAt: -1 });
+billSchema.index({ tenantId: 1, customerId: 1, createdAt: -1 });
 
 export const BillModel = mongoose.model<IBill>('Bill', billSchema);

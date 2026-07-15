@@ -4,7 +4,7 @@ import {
   Search,
   Plus,
   Loader2,
-  Upload,
+  Download,
   Filter,
   ArrowUpDown,
   ArrowLeft,
@@ -12,6 +12,7 @@ import {
   Package,
   HandCoins,
   ShoppingCart,
+  Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -75,7 +76,12 @@ function shortDate(dateString?: string) {
 }
 
 function isActiveAccount(a: AccountWithCustomer) {
-  return (a.totalBilled ?? 0) > 0 || (a.dueBalance ?? 0) > 0 || (a.totalPaid ?? 0) > 0;
+  return (
+    (a.totalBilled ?? 0) > 0 ||
+    (a.dueBalance ?? 0) > 0 ||
+    (a.totalPaid ?? 0) > 0 ||
+    (a.creditBalance ?? 0) > 0
+  );
 }
 
 function CustomerAvatar({ name }: { name: string }) {
@@ -203,6 +209,7 @@ export default function AccountsPage() {
     const totalOrders = accounts.reduce((s, a) => s + (a.totalBilled ?? 0), 0);
     const paymentReceived = accounts.reduce((s, a) => s + (a.totalPaid ?? 0), 0);
     const paymentDue = accounts.reduce((s, a) => s + (a.dueBalance ?? 0), 0);
+    const storeCredit = accounts.reduce((s, a) => s + (a.creditBalance ?? 0), 0);
 
     let lastOrders = 0;
     let lastReceived = 0;
@@ -216,7 +223,15 @@ export default function AccountsPage() {
     }
     const lastDue = Math.max(0, lastOrders - lastReceived);
 
-    return { totalOrders, paymentReceived, paymentDue, lastOrders, lastReceived, lastDue };
+    return {
+      totalOrders,
+      paymentReceived,
+      paymentDue,
+      storeCredit,
+      lastOrders,
+      lastReceived,
+      lastDue,
+    };
   }, [accounts, bills, monthRanges]);
 
   const filtered = useMemo(() => {
@@ -305,7 +320,17 @@ export default function AccountsPage() {
   }
 
   function exportCsv() {
-    const header = ['Customer ID', 'Name', 'Phone', 'Date', 'Status', 'Total Billed', 'Paid', 'Due'];
+    const header = [
+      'Customer ID',
+      'Name',
+      'Phone',
+      'Date',
+      'Status',
+      'Total Billed',
+      'Paid',
+      'Due',
+      'Credit',
+    ];
     const lines = filtered.map((a) => {
       const c = a.customerId;
       const active = isActiveAccount(a) ? 'Active' : 'Inactive';
@@ -318,6 +343,7 @@ export default function AccountsPage() {
         String(a.totalBilled ?? 0),
         String(a.totalPaid ?? 0),
         String(a.dueBalance ?? 0),
+        String(a.creditBalance ?? 0),
       ].join(',');
     });
     const blob = new Blob([[header.join(','), ...lines].join('\n')], {
@@ -349,7 +375,7 @@ export default function AccountsPage() {
           </h1>
         </header>
 
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+        <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
           <SummaryCard
             label="Total Orders"
             amount={summary.totalOrders}
@@ -375,6 +401,15 @@ export default function AccountsPage() {
             icon={ShoppingCart}
             iconBg="bg-[#fee2e2]"
             iconColor="text-[#dc2626]"
+            loading={loading}
+          />
+          <SummaryCard
+            label="Store Credit"
+            amount={summary.storeCredit}
+            lastMonth={0}
+            icon={Wallet}
+            iconBg="bg-[#e0e7ff]"
+            iconColor="text-[#4338ca]"
             loading={loading}
           />
         </section>
@@ -455,14 +490,14 @@ export default function AccountsPage() {
                 onClick={exportCsv}
                 className={cn('h-11 rounded-xl gap-2 px-5 flex-1 sm:flex-none', btnPrimary)}
               >
-                <Upload className="w-4 h-4" /> Export
+                <Download className="w-4 h-4" /> Export
               </Button>
             </div>
           </div>
 
           <div className="bg-white rounded-[16px] border border-[#e8eef5] shadow-[0_4px_16px_rgba(15,23,42,0.04)] overflow-hidden">
             <div className="overflow-x-auto">
-              <Table className="min-w-[640px]">
+              <Table className="min-w-[860px]">
                 <TableHeader>
                   <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                     <TableHead className="pl-6 text-[#64748b] font-semibold text-xs uppercase tracking-wide">
@@ -473,6 +508,12 @@ export default function AccountsPage() {
                     </TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">
                       Date
+                    </TableHead>
+                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide text-right">
+                      Due
+                    </TableHead>
+                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide text-right">
+                      Credit
                     </TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">
                       Status
@@ -485,13 +526,13 @@ export default function AccountsPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-20 text-center">
+                      <TableCell colSpan={7} className="py-20 text-center">
                         <Loader2 className="h-7 w-7 animate-spin mx-auto text-[#94a3b8]" />
                       </TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-16 text-center text-[#64748b]">
+                      <TableCell colSpan={7} className="py-16 text-center text-[#64748b]">
                         No customers found
                       </TableCell>
                     </TableRow>
@@ -499,6 +540,8 @@ export default function AccountsPage() {
                     filtered.map((account) => {
                       const customer = account.customerId;
                       const active = isActiveAccount(account);
+                      const due = account.dueBalance ?? 0;
+                      const credit = account.creditBalance ?? 0;
                       return (
                         <TableRow
                           key={account._id}
@@ -523,6 +566,22 @@ export default function AccountsPage() {
                           </TableCell>
                           <TableCell className="text-[14px] text-[#334155] whitespace-nowrap">
                             {shortDate(account.lastActivityAt || customer.createdAt)}
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              'text-[14px] font-semibold tabular-nums text-right whitespace-nowrap',
+                              due > 0.001 ? 'text-[#dc2626]' : 'text-[#0f172a]'
+                            )}
+                          >
+                            ₹{due.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </TableCell>
+                          <TableCell
+                            className={cn(
+                              'text-[14px] font-semibold tabular-nums text-right whitespace-nowrap',
+                              credit > 0.001 ? 'text-[#4338ca]' : 'text-[#94a3b8]'
+                            )}
+                          >
+                            ₹{credit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </TableCell>
                           <TableCell>
                             <span
