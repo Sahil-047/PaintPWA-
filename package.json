@@ -2,6 +2,7 @@
   "name": "paint-saas",
   "private": true,
   "version": "2.0.0",
+  "packageManager": "npm@10.8.2",
   "workspaces": [
     "packages/*",
     "server",
