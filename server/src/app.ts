@@ -19,7 +19,12 @@ const app = express();
 
 app.use(
   cors({
-    origin: ['http://localhost:5173', 'https://paintappstore.in'],
+    origin: [
+      'http://localhost:5173',
+      'https://paintappstore.in',
+      'https://www.paintappstore.in',
+      'https://app.paintappstore.in',
+    ],
     credentials: true,
   })
 );

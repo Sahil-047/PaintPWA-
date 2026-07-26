@@ -138,6 +138,8 @@ else
   log "Building marketing-next"
   (
     cd marketing-next
+    # Bake production ERP URL into client bundle (Start pilot / signup links)
+    export NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-https://app.paintappstore.in}"
     run "npm install"
     run "npm run build"
   )

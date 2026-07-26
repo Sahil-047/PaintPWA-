@@ -57,7 +57,12 @@ const stats = [
 export default function Home() {
   const rootRef = useRef<HTMLDivElement>(null);
   const mouseGlowRef = useRef<HTMLDivElement>(null);
-  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:5173";
+  // Baked at build time. Prod default = live ERP; override with NEXT_PUBLIC_APP_URL for local.
+  const appBaseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.NODE_ENV === "development"
+      ? "http://localhost:5173"
+      : "https://app.paintappstore.in");
   const startPilotHref = `${appBaseUrl.replace(/\/$/, "")}/signup`;
 
   useEffect(() => {
