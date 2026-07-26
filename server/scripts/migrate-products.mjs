@@ -291,7 +291,6 @@ function mapProduct(doc, tenantId, validBrandIds) {
   }
 
   const stockBySize = normalizeSizeMap(doc.stockBySize);
-  const priceBySize = normalizeSizeMap(doc.priceBySize);
   const stockFromSizes = sumStock(stockBySize);
   const stock =
     stockFromSizes > 0 ? stockFromSizes : typeof doc.stock === 'number' ? doc.stock : 0;
@@ -299,11 +298,6 @@ function mapProduct(doc, tenantId, validBrandIds) {
   if (stockFromSizes === 0 && stock > 0) {
     stockBySize['1L'] = stock;
   }
-
-  const price =
-    typeof doc.price === 'number' && doc.price > 0
-      ? doc.price
-      : priceBySize['1L'] || priceBySize['4L'] || 0;
 
   return {
     _id: doc._id,
@@ -316,11 +310,9 @@ function mapProduct(doc, tenantId, validBrandIds) {
     description: doc.description ?? '',
     base: doc.base ?? '',
     unit: doc.unit ?? 'L',
-    price,
     stock,
     lowStockThreshold: doc.lowStockThreshold ?? 5,
     stockBySize,
-    priceBySize,
     isActive: doc.isActive !== false,
     createdAt: doc.createdAt ?? new Date(),
     updatedAt: doc.updatedAt ?? new Date(),

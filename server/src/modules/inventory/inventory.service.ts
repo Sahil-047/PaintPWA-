@@ -10,32 +10,22 @@ import type {
   CreateProductTypeInput,
 } from './inventory.validator.js';
 
-function primarySalePrice(priceBySize: Record<string, number> | undefined, price: number): number {
-  if (!priceBySize) return price;
-  for (const size of ['1L', '4L', '10L', '500ml', '200ml', '100ml', '50ml', '20L']) {
-    const v = priceBySize[size];
-    if (v && v > 0) return v;
-  }
-  return price;
-}
-
 export function serializeProduct(doc: Record<string, unknown>) {
   const stock = (doc.stock as number) ?? sumSizeMap(doc.stockBySize as Record<string, number>);
-  const priceBySize = doc.priceBySize as Record<string, number> | undefined;
-  const price = (doc.price as number) ?? 0;
   const brand = doc.brand;
   const brandName =
     brand && typeof brand === 'object' && brand !== null && 'name' in brand
       ? (brand as { name: string }).name
       : undefined;
 
+  const { price: _price, priceBySize: _priceBySize, salePrice: _salePrice, ...rest } = doc;
+
   return {
-    ...doc,
+    ...rest,
     brand: brand && typeof brand === 'object' && '_id' in brand ? String((brand as { _id: unknown })._id) : String(brand),
     brandName,
     stock,
     stockQty: stock,
-    salePrice: primarySalePrice(priceBySize, price),
     lowStockAlert: doc.lowStockThreshold ?? 5,
   };
 }
@@ -212,14 +202,12 @@ export async function createProduct(tenantId: Types.ObjectId, input: CreateProdu
   if (!brand) throw new AppError('Brand not found', 404);
 
   const stockBySize = mergeSizeMaps(undefined, input.stockBySize);
-  const priceBySize = mergeSizeMaps(undefined, input.priceBySize);
 
   const product = await ProductModel.create({
     tenantId,
     ...input,
     brand: input.brand,
     stockBySize,
-    priceBySize,
     stock: sumSizeMap(stockBySize),
   });
 
@@ -246,14 +234,8 @@ export async function updateProduct(
     ) as typeof existing.stockBySize;
     existing.stock = sumSizeMap(existing.stockBySize as Record<string, number>);
   }
-  if (input.priceBySize) {
-    existing.priceBySize = mergeSizeMaps(
-      existing.priceBySize as Record<string, number>,
-      input.priceBySize
-    ) as typeof existing.priceBySize;
-  }
 
-  const { stockBySize: _s, priceBySize: _p, ...rest } = input;
+  const { stockBySize: _s, ...rest } = input;
   Object.assign(existing, rest);
   await existing.save();
 

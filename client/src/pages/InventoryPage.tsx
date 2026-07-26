@@ -78,22 +78,12 @@ const emptyProductForm = () => ({
   description: '',
   base: '',
   unit: 'L',
-  price: 0,
   lowStockThreshold: 5,
   stockBySize: emptySizeMap(),
-  priceBySize: emptySizeMap(),
 });
-
-function formatINR(value: number) {
-  return `₹${value.toLocaleString('en-IN')}`;
-}
 
 function stockOf(p: Product) {
   return p.stock ?? p.stockQty ?? 0;
-}
-
-function priceOf(p: Product) {
-  return p.salePrice ?? p.price ?? p.priceBySize?.['1L'] ?? 0;
 }
 
 function stockStatus(p: Product): 'in' | 'low' | 'out' {
@@ -313,7 +303,7 @@ export default function InventoryPage() {
   const [typeSearch, setTypeSearch] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [brandSearch, setBrandSearch] = useState('');
-  const [brandSort, setBrandSort] = useState<'newest' | 'name' | 'value'>('newest');
+  const [brandSort, setBrandSort] = useState<'newest' | 'name'>('newest');
   const [brandPage, setBrandPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
 
@@ -409,17 +399,14 @@ export default function InventoryPage() {
   function brandStats(brandId: string) {
     const bp = allProducts.filter((p) => p.brand === brandId);
     const typeCount = allTypes.filter((t) => t.brandId === brandId).length;
-    const stockValue = bp.reduce((sum, p) => sum + stockOf(p) * priceOf(p), 0);
-    return { typeCount, productCount: bp.length, stockValue };
+    return { typeCount, productCount: bp.length };
   }
 
   const globalStats = useMemo(() => {
-    const inventoryValue = allProducts.reduce((sum, p) => sum + stockOf(p) * priceOf(p), 0);
     return {
       totalBrands: brands.length,
       totalTypes: allTypes.length,
       totalProducts: allProducts.length,
-      inventoryValue,
     };
   }, [brands.length, allTypes.length, allProducts]);
 
@@ -430,7 +417,6 @@ export default function InventoryPage() {
     if (brandStatusFilter === 'inactive') list = list.filter((b) => b.isActive === false);
     list = [...list].sort((a, b) => {
       if (brandSort === 'name') return a.name.localeCompare(b.name);
-      if (brandSort === 'value') return brandStats(b._id).stockValue - brandStats(a._id).stockValue;
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
@@ -449,10 +435,10 @@ export default function InventoryPage() {
   }, [brandSearch, brandSort]);
 
   function typeStats(typeName: string) {
-    if (!selectedBrand) return { productCount: 0, stockValue: 0 };
+    if (!selectedBrand) return { productCount: 0, totalStock: 0 };
     const tp = allProducts.filter((p) => p.brand === selectedBrand._id && p.type === typeName);
-    const stockValue = tp.reduce((sum, p) => sum + stockOf(p) * priceOf(p), 0);
-    return { productCount: tp.length, stockValue };
+    const totalStock = tp.reduce((sum, p) => sum + stockOf(p), 0);
+    return { productCount: tp.length, totalStock };
   }
 
   function selectBrand(brand: Brand) {
@@ -669,10 +655,8 @@ export default function InventoryPage() {
       description: product.description ?? '',
       base: product.base ?? '',
       unit: product.unit,
-      price: product.price,
       lowStockThreshold: product.lowStockThreshold,
       stockBySize: { ...emptySizeMap(), ...product.stockBySize },
-      priceBySize: { ...emptySizeMap(), ...product.priceBySize },
     });
     setProductDialog(true);
   }
@@ -781,7 +765,7 @@ export default function InventoryPage() {
             {stock} {product.unit}
           </span>
         </TableCell>
-        <TableCell className="font-semibold text-[#0f172a] text-[14px]">{formatINR(priceOf(product))}</TableCell>
+        <TableCell className="font-semibold text-[#0f172a] text-[14px]">{product.base?.trim() || '—'}</TableCell>
         <TableCell>
           <StatusBadge status={status} />
         </TableCell>
@@ -941,7 +925,6 @@ export default function InventoryPage() {
                     <SelectContent>
                       <SelectItem value="newest">Sort by · Newest</SelectItem>
                       <SelectItem value="name">Sort by · Name</SelectItem>
-                      <SelectItem value="value">Sort by · Value</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -953,7 +936,6 @@ export default function InventoryPage() {
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide pl-6">Brand</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Types</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Products</TableHead>
-                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Value</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Status</TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide text-right pr-6">Actions</TableHead>
                   </TableRow>
@@ -1003,7 +985,6 @@ export default function InventoryPage() {
                           </TableCell>
                           <TableCell className="text-[14px] font-medium text-[#334155]">{stats.typeCount}</TableCell>
                           <TableCell className="text-[14px] font-medium text-[#334155]">{stats.productCount.toLocaleString('en-IN')}</TableCell>
-                          <TableCell className="text-[14px] font-semibold text-[#0f172a]">{formatINR(stats.stockValue)}</TableCell>
                           <TableCell>
                             {brand.isActive !== false ? (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold bg-[#dcfce7] text-[#15803d]">
@@ -1134,9 +1115,6 @@ export default function InventoryPage() {
                 {filteredTypes.map((type) => {
                   const stats = typeStats(type.name);
                   const { Icon, bg, color } = resolveTypeIcon(type.icon, type.name);
-                  const avgPrice = stats.productCount
-                    ? stats.stockValue / stats.productCount
-                    : 0;
                   return (
                     <div
                       key={type._id}
@@ -1182,7 +1160,7 @@ export default function InventoryPage() {
                           {type.name}
                         </p>
                         <p className="text-[13px] text-[#94a3b8] mt-1.5">
-                          Price: ₹{avgPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          Stock: {stats.totalStock.toLocaleString('en-IN')}
                         </p>
                         <p className="text-[13px] font-semibold text-[#16a34a] mt-1.5">
                           +{stats.productCount} this month
@@ -1254,7 +1232,7 @@ export default function InventoryPage() {
                   <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">SKU</TableHead>
                   <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Pack Size</TableHead>
                   <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Stock</TableHead>
-                  <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Price</TableHead>
+                  <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Base</TableHead>
                   <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">Status</TableHead>
                   <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide text-right">Actions</TableHead>
                 </TableRow>
@@ -1665,28 +1643,6 @@ export default function InventoryPage() {
                         setProductForm({
                           ...productForm,
                           stockBySize: { ...productForm.stockBySize, [size]: +e.target.value },
-                        })
-                      }
-                      className="rounded-lg h-9"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label className="mb-2 block">Price by size (₹)</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {PAINT_SIZES.map((size) => (
-                  <div key={size} className="space-y-1">
-                    <Label className="text-xs text-[#64748b]">{size}</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={productForm.priceBySize[size]}
-                      onChange={(e) =>
-                        setProductForm({
-                          ...productForm,
-                          priceBySize: { ...productForm.priceBySize, [size]: +e.target.value },
                         })
                       }
                       className="rounded-lg h-9"

@@ -12,7 +12,7 @@ export const createBillSchema = z.object({
       z.object({
         productId: z.string().min(1),
         qty: z.number().min(1),
-        rate: z.number().min(0).optional(),
+        rate: z.number().positive(),
         size: z.string().optional(),
       })
     )

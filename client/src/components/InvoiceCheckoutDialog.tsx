@@ -48,7 +48,7 @@ interface InvoiceCheckoutDialogProps {
   onDiscountAmountChange: (amount: string) => void;
   discountAmount: string;
   onSubmit: (payload: {
-    customer: { name: string; phone?: string; address?: string; gstin?: string };
+    customer: { name: string; phone?: string; address?: string };
     amountPaid: number;
     paymentMode: string;
   }) => Promise<void>;
@@ -107,7 +107,6 @@ export default function InvoiceCheckoutDialog({
   const [lastName, setLastName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
-  const [gstin, setGstin] = useState('');
   const [issuedDate, setIssuedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [dueDate, setDueDate] = useState('');
   const [paymentMode, setPaymentMode] = useState('upi');
@@ -129,7 +128,6 @@ export default function InvoiceCheckoutDialog({
       setLastName('');
       setAddress('');
       setPhone('');
-      setGstin('');
       setIssuedDate(new Date().toISOString().slice(0, 10));
       setDueDate('');
       setPaymentMode('upi');
@@ -137,8 +135,7 @@ export default function InvoiceCheckoutDialog({
     }
   }, [open]);
 
-  const gst = subtotal * 0.18;
-  /** Must match server Bill.grandTotal (subtotal − discount). GST is display-only. */
+  /** Must match server Bill.grandTotal (subtotal − discount). */
   const billTotal = Math.max(0, subtotal - discount);
   const amountPaid = Math.min(billTotal, Math.max(0, parseFloat(amountPaidInput) || 0));
   const balanceDue = Math.max(0, billTotal - amountPaid);
@@ -155,7 +152,6 @@ export default function InvoiceCheckoutDialog({
     email: user?.email ?? '',
     phone: tenant?.phone?.trim() || '',
     address: tenant?.address?.trim() || '',
-    gstin: tenant?.gstin?.trim() || '',
   };
 
   function applyCustomer(c: Customer) {
@@ -165,7 +161,6 @@ export default function InvoiceCheckoutDialog({
     setLastName(parts.slice(1).join(' '));
     setPhone(c.phone ?? '');
     setAddress(c.address ?? '');
-    setGstin(c.gstin ?? '');
   }
 
   function handleCustomerSelect(value: string) {
@@ -175,7 +170,6 @@ export default function InvoiceCheckoutDialog({
       setLastName('');
       setAddress('');
       setPhone('');
-      setGstin('');
       return;
     }
     const customer = customers.find((c) => c._id === value);
@@ -196,7 +190,6 @@ export default function InvoiceCheckoutDialog({
         name: fullName,
         phone: phone || undefined,
         address: address || undefined,
-        gstin: gstin || undefined,
       },
       amountPaid,
       paymentMode,
@@ -627,11 +620,6 @@ export default function InvoiceCheckoutDialog({
                     {billedBy.address && (
                       <p className="mt-0.5 text-[8px] text-[#64748b] leading-snug">{billedBy.address}</p>
                     )}
-                    {billedBy.gstin && (
-                      <p className="mt-0.5 text-[8px] text-[#64748b] leading-snug">
-                        GSTIN {billedBy.gstin}
-                      </p>
-                    )}
                   </div>
                   <div className="min-w-0">
                     <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-[#94a3b8]">
@@ -696,10 +684,6 @@ export default function InvoiceCheckoutDialog({
                   <div className="flex justify-between text-[#64748b]">
                     <span>Subtotal</span>
                     <span className="tabular-nums text-[#0f172a]">{formatCurrency(subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between text-[#64748b]">
-                    <span>G.S.T (18%)</span>
-                    <span className="tabular-nums text-[#0f172a]">{formatCurrency(gst)}</span>
                   </div>
                   {discountEnabled && discount > 0 && (
                     <div className="flex justify-between text-[#64748b]">

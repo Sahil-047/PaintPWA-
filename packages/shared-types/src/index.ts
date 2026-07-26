@@ -89,18 +89,14 @@ export interface Product {
   description?: string;
   base?: string;
   unit: string;
-  price: number;
   stock: number;
   lowStockThreshold: number;
   stockBySize: SizeMap;
-  priceBySize: SizeMap;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
   /** @deprecated use stock — kept for billing compat */
   stockQty?: number;
-  /** @deprecated use priceBySize — kept for billing compat */
-  salePrice?: number;
   lowStockAlert?: number;
 }
 

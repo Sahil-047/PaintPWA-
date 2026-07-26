@@ -11,11 +11,9 @@ export interface IProduct extends Document {
   description: string;
   base: string;
   unit: string;
-  price: number;
   stock: number;
   lowStockThreshold: number;
   stockBySize: Record<string, number>;
-  priceBySize: Record<string, number>;
   isActive: boolean;
 }
 
@@ -32,20 +30,9 @@ const productSchema = new Schema<IProduct>(
     description: { type: String, default: '' },
     base: { type: String, default: '', trim: true },
     unit: { type: String, default: 'L', trim: true },
-    price: { type: Number, default: 0, min: 0 },
     stock: { type: Number, default: 0, min: 0 },
     lowStockThreshold: { type: Number, default: 5, min: 0 },
     stockBySize: {
-      '50ml': sizeField,
-      '100ml': sizeField,
-      '200ml': sizeField,
-      '500ml': sizeField,
-      '1L': sizeField,
-      '4L': sizeField,
-      '10L': sizeField,
-      '20L': sizeField,
-    },
-    priceBySize: {
       '50ml': sizeField,
       '100ml': sizeField,
       '200ml': sizeField,

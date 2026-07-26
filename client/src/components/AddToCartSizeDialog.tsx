@@ -9,23 +9,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import ProductImage from '@/components/ProductImage';
 
 export interface SizeOption {
   size: string;
   stock: number;
-  price: number;
 }
 
 export function getProductSizeOptions(product: Product): SizeOption[] {
   const fromSizes = PAINT_SIZES.map((size) => ({
     size,
     stock: product.stockBySize?.[size] ?? 0,
-    price:
-      (product.priceBySize?.[size] ?? 0) > 0
-        ? (product.priceBySize?.[size] ?? 0)
-        : product.price ?? product.salePrice ?? 0,
   })).filter((s) => s.stock > 0);
 
   if (fromSizes.length > 0) return fromSizes;
@@ -36,7 +31,6 @@ export function getProductSizeOptions(product: Product): SizeOption[] {
       {
         size: product.unit || 'unit',
         stock: total,
-        price: product.salePrice ?? product.price ?? 0,
       },
     ];
   }
@@ -113,9 +107,6 @@ export default function AddToCartSizeDialog({
                       {inCart > 0 && left > 0 && ` · ${inCart} in cart`}
                     </p>
                   </div>
-                  <p className="font-semibold text-[#2563eb] tabular-nums">
-                    {formatCurrency(opt.price)}
-                  </p>
                 </button>
               );
             })

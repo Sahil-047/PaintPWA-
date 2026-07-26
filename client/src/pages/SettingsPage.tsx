@@ -70,7 +70,6 @@ export default function SettingsPage() {
     name: tenant?.name ?? '',
     phone: tenant?.phone ?? '',
     address: tenant?.address ?? '',
-    gstin: tenant?.gstin ?? '',
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -88,9 +87,8 @@ export default function SettingsPage() {
       name: tenant?.name ?? '',
       phone: tenant?.phone ?? '',
       address: tenant?.address ?? '',
-      gstin: tenant?.gstin ?? '',
     });
-  }, [tenant?.name, tenant?.phone, tenant?.address, tenant?.gstin]);
+  }, [tenant?.name, tenant?.phone, tenant?.address]);
 
   async function handleProfileSave(e: FormEvent) {
     e.preventDefault();
@@ -129,7 +127,6 @@ export default function SettingsPage() {
         name: shop.name.trim(),
         phone: shop.phone.trim(),
         address: shop.address.trim(),
-        gstin: shop.gstin.trim(),
       });
       if (token && user) setAuth(token, user, updated, isSuperAdmin);
       toast.success('Shop details saved');
@@ -312,28 +309,16 @@ export default function SettingsPage() {
                     className={inputClass}
                   />
                 </Field>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Field id="shop-phone" label="Phone">
-                    <Input
-                      id="shop-phone"
-                      value={shop.phone}
-                      disabled={!isShopAdmin}
-                      placeholder="Optional"
-                      onChange={(e) => setShop((s) => ({ ...s, phone: e.target.value }))}
-                      className={inputClass}
-                    />
-                  </Field>
-                  <Field id="shop-gstin" label="GSTIN">
-                    <Input
-                      id="shop-gstin"
-                      value={shop.gstin}
-                      disabled={!isShopAdmin}
-                      placeholder="Optional"
-                      onChange={(e) => setShop((s) => ({ ...s, gstin: e.target.value }))}
-                      className={inputClass}
-                    />
-                  </Field>
-                </div>
+                <Field id="shop-phone" label="Phone">
+                  <Input
+                    id="shop-phone"
+                    value={shop.phone}
+                    disabled={!isShopAdmin}
+                    placeholder="Optional"
+                    onChange={(e) => setShop((s) => ({ ...s, phone: e.target.value }))}
+                    className={inputClass}
+                  />
+                </Field>
                 <Field id="shop-address" label="Address">
                   <Input
                     id="shop-address"

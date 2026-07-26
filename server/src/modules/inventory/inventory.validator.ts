@@ -37,10 +37,8 @@ export const createProductSchema = z.object({
   description: z.string().optional(),
   base: z.string().optional(),
   unit: z.string().optional(),
-  price: z.number().min(0).optional(),
   lowStockThreshold: z.number().min(0).optional(),
   stockBySize: sizeMapSchema,
-  priceBySize: sizeMapSchema,
   isActive: z.boolean().optional(),
 });
 

@@ -13,8 +13,6 @@ interface PdfBillData {
   billedByAddress?: string;
   items: Array<{ name: string; qty: number; rate: number; total: number; subtitle?: string }>;
   subtotal: number;
-  gstRate?: number;
-  gstAmount?: number;
   discount: number;
   grandTotal: number;
   date: string;
@@ -128,8 +126,6 @@ function numberToWordsIndian(n: number): string {
 }
 
 export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
-  const gstRate = data.gstRate ?? 18;
-  const gstAmount = data.gstAmount ?? 0;
   const brand = data.firmName ?? data.billedByName ?? 'Shop';
   const status = statusLabel(data.status);
 
@@ -318,7 +314,7 @@ export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
         React.createElement(
           View,
           null,
-          React.createElement(Text, { style: billStyles.kicker }, 'Tax invoice'),
+          React.createElement(Text, { style: billStyles.kicker }, 'Invoice'),
           React.createElement(
             View,
             { style: billStyles.wordmarkRow },
@@ -452,12 +448,6 @@ export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
             { style: billStyles.totalsRow },
             React.createElement(Text, null, 'Subtotal'),
             React.createElement(Text, null, formatCurrency(data.subtotal))
-          ),
-          React.createElement(
-            View,
-            { style: billStyles.totalsRow },
-            React.createElement(Text, null, `GST (${gstRate}%)`),
-            React.createElement(Text, null, formatCurrency(gstAmount))
           ),
           data.discount > 0
             ? React.createElement(

@@ -188,7 +188,7 @@ export default function BillingPage() {
           base: product.base,
           packSize,
           productImage: product.productImage,
-          price: opt.price,
+          price: 0,
           quantity: 1,
           stockQty: opt.stock,
         },
@@ -260,7 +260,6 @@ export default function BillingPage() {
               ...c,
               cartItemId: newLineId,
               packSize: newSize,
-              price: opt.price,
               stockQty: opt.stock,
               quantity: Math.min(c.quantity, opt.stock),
             }
@@ -272,8 +271,6 @@ export default function BillingPage() {
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const discountNum = discountChecked ? parseFloat(discount) || 0 : 0;
   const grandTotal = Math.max(0, subtotal - discountNum);
-  const gstDisplay = subtotal * 0.18;
-  const displayTotal = Math.max(0, subtotal + gstDisplay - discountNum);
 
   function openCheckout() {
     if (cart.length === 0) {
@@ -288,7 +285,7 @@ export default function BillingPage() {
   }
 
   async function handleCheckout(payload: {
-    customer: { name: string; phone?: string; address?: string; gstin?: string };
+    customer: { name: string; phone?: string; address?: string };
     amountPaid: number;
     paymentMode: string;
   }) {
@@ -716,10 +713,6 @@ export default function BillingPage() {
                   <span>Subtotal</span>
                   <span className="font-semibold text-[#0f172a]">₹ {subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-[#64748b]">
-                  <span>G.S.T (18%)</span>
-                  <span className="font-semibold text-[#0f172a]">₹ {gstDisplay.toFixed(2)}</span>
-                </div>
                 <label className="flex items-center justify-between cursor-pointer">
                   <span className="flex items-center gap-2.5 text-[#64748b]">
                     <input
@@ -745,7 +738,7 @@ export default function BillingPage() {
                 )}
                 <div className="flex justify-between text-[17px] font-bold text-[#0f172a] pt-3 border-t border-[#f1f5f9]">
                   <span>Total</span>
-                  <span>₹ {displayTotal.toFixed(2)}</span>
+                  <span>₹ {grandTotal.toFixed(2)}</span>
                 </div>
               </div>
 

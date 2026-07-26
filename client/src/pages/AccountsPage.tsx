@@ -46,7 +46,7 @@ import { accountDetailPath } from '@/config/config';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-const emptyCustomerForm = { name: '', phone: '', address: '', gstin: '' };
+const emptyCustomerForm = { name: '', phone: '', address: '' };
 const btnPrimary =
   'bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-[0_4px_14px_rgba(37,99,235,0.28)] border-0';
 const inputClass =
@@ -62,10 +62,6 @@ function formatMoneyParts(amount: number) {
     maximumFractionDigits: 2,
   }).split('.');
   return { whole: `₹ ${whole}`, dec: `.${dec ?? '00'}` };
-}
-
-function customerCode(id: string) {
-  return `#${id.slice(-8).toUpperCase()}`;
 }
 
 function shortDate(dateString?: string) {
@@ -242,12 +238,10 @@ export default function AccountsPage() {
       if (statusTab === 'inactive' && active) return false;
       if (!q) return true;
       const c = a.customerId;
-      const code = customerCode(c._id).toLowerCase();
       return (
         c.name?.toLowerCase().includes(q) ||
         c.phone?.toLowerCase().includes(q) ||
-        code.includes(q) ||
-        c._id.toLowerCase().includes(q)
+        (c.address?.toLowerCase().includes(q) ?? false)
       );
     });
 
@@ -278,7 +272,6 @@ export default function AccountsPage() {
       name: customer.name,
       phone: customer.phone ?? '',
       address: customer.address ?? '',
-      gstin: customer.gstin ?? '',
     });
     setEditOpen(true);
   }
@@ -321,7 +314,6 @@ export default function AccountsPage() {
 
   function exportCsv() {
     const header = [
-      'Customer ID',
       'Name',
       'Phone',
       'Date',
@@ -335,7 +327,6 @@ export default function AccountsPage() {
       const c = a.customerId;
       const active = isActiveAccount(a) ? 'Active' : 'Inactive';
       return [
-        customerCode(c._id),
         `"${(c.name ?? '').replace(/"/g, '""')}"`,
         c.phone ?? '',
         shortDate(a.lastActivityAt || c.createdAt),
@@ -442,7 +433,7 @@ export default function AccountsPage() {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
               <Input
                 type="text"
-                placeholder="Search by customer id or name"
+                placeholder="Search by name or phone"
                 value={search}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 className="pl-10 h-11 rounded-full border-[#e2e8f0] bg-[#f8fafc] text-sm"
@@ -501,9 +492,6 @@ export default function AccountsPage() {
                 <TableHeader>
                   <TableRow className="bg-[#f8fafc] hover:bg-[#f8fafc] border-[#f1f5f9]">
                     <TableHead className="pl-6 text-[#64748b] font-semibold text-xs uppercase tracking-wide">
-                      Customer ID
-                    </TableHead>
-                    <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">
                       Customer
                     </TableHead>
                     <TableHead className="text-[#64748b] font-semibold text-xs uppercase tracking-wide">
@@ -526,13 +514,13 @@ export default function AccountsPage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-20 text-center">
+                      <TableCell colSpan={6} className="py-20 text-center">
                         <Loader2 className="h-7 w-7 animate-spin mx-auto text-[#94a3b8]" />
                       </TableCell>
                     </TableRow>
                   ) : filtered.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-16 text-center text-[#64748b]">
+                      <TableCell colSpan={6} className="py-16 text-center text-[#64748b]">
                         No customers found
                       </TableCell>
                     </TableRow>
@@ -548,10 +536,7 @@ export default function AccountsPage() {
                           className="border-[#f1f5f9] hover:bg-[#f8fafc]/80 cursor-pointer"
                           onClick={() => navigate(accountDetailPath(customer._id))}
                         >
-                          <TableCell className="pl-6 text-[14px] font-semibold text-[#0f172a] whitespace-nowrap">
-                            {customerCode(customer._id)}
-                          </TableCell>
-                          <TableCell>
+                          <TableCell className="pl-6">
                             <div className="flex items-center gap-3 min-w-0 py-1">
                               <CustomerAvatar name={customer.name} />
                               <div className="min-w-0">
@@ -625,7 +610,7 @@ export default function AccountsPage() {
             <DialogDescription>Add to your ledger for billing and payments.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            {(['name', 'phone', 'address', 'gstin'] as const).map((field) => (
+            {(['name', 'phone', 'address'] as const).map((field) => (
               <div key={field}>
                 <Label className="capitalize text-slate-600">
                   {field === 'name' ? 'Full name *' : field}
@@ -669,7 +654,7 @@ export default function AccountsPage() {
             <DialogDescription>Update customer profile information.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            {(['name', 'phone', 'address', 'gstin'] as const).map((field) => (
+            {(['name', 'phone', 'address'] as const).map((field) => (
               <div key={field}>
                 <Label className="text-slate-600 capitalize">
                   {field === 'name' ? 'Full name' : field}

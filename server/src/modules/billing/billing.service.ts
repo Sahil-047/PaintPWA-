@@ -22,11 +22,8 @@ async function getShopBillingIdentity(tenantId: Types.ObjectId) {
   const email = owner?.email?.trim() || '';
   const phone = tenant?.phone?.trim() || '';
   const address = tenant?.address?.trim() || '';
-  const gstin = tenant?.gstin?.trim() || '';
 
-  const addressLines = [address, phone ? `Phone: ${phone}` : '', gstin ? `GSTIN: ${gstin}` : '']
-    .filter(Boolean)
-    .join('\n');
+  const addressLines = [address, phone ? `Phone: ${phone}` : ''].filter(Boolean).join('\n');
 
   return {
     firmName: shopName,
@@ -50,7 +47,10 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
       item.qty,
       item.size
     );
-    const rate = item.rate ?? product.salePrice ?? 0;
+    const rate = item.rate;
+    if (!rate || rate <= 0) {
+      throw new AppError('Unit rate is required for every bill item', 400);
+    }
     const total = rate * item.qty;
     subtotal += total;
     const baseName = String((product as { name?: string }).name ?? '');
@@ -106,8 +106,6 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
 
   const customerDoc = await CustomerModel.findById(customer._id);
   const shop = await getShopBillingIdentity(tenantId);
-  const gstRate = 18;
-  const gstAmount = 0;
   const issuedAt = new Date().toISOString();
   const pdfBuffer = await generateBillPdf({
     billNo: bill.billNo,
@@ -126,8 +124,6 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
       total: i.total,
     })),
     subtotal,
-    gstRate,
-    gstAmount,
     discount,
     grandTotal,
     date: issuedAt,
@@ -182,8 +178,6 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
     phone?: string;
   } | null;
   const shop = await getShopBillingIdentity(tenantId);
-  const gstRate = 18;
-  const gstAmount = 0;
   const createdAt =
     (bill as { createdAt?: Date }).createdAt?.toISOString?.() ?? new Date().toISOString();
 
@@ -203,8 +197,6 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
       total: i.total,
     })),
     subtotal: bill.subtotal,
-    gstRate,
-    gstAmount,
     discount: bill.discount,
     grandTotal: bill.grandTotal,
     date: createdAt,

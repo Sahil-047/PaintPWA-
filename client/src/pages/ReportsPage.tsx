@@ -65,6 +65,13 @@ function accountNoFromCustomer(customerId: string | Customer | undefined) {
   return String((n % 90) + 10);
 }
 
+function customerNameFromBill(customerId: string | Customer | undefined) {
+  if (customerId && typeof customerId === 'object' && customerId.name) {
+    return customerId.name;
+  }
+  return '—';
+}
+
 function parseVolume(productName?: string) {
   if (!productName) return '—';
   const match = productName.match(/\(([^)]+)\)\s*$/);
@@ -211,10 +218,12 @@ export default function ReportsPage() {
       if (!q) return true;
       const invoice = invoiceNoFromBill(bill, invoiceIndexById.get(bill._id) ?? 0);
       const account = accountNoFromCustomer(bill.customerId);
+      const customerName = customerNameFromBill(bill.customerId);
       return (
         bill.billNo.toLowerCase().includes(q) ||
         invoice.includes(q) ||
-        account.includes(q)
+        account.includes(q) ||
+        customerName.toLowerCase().includes(q)
       );
     });
 
@@ -318,7 +327,7 @@ export default function ReportsPage() {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
               <Input
                 type="text"
-                placeholder="Search by bill or account no..."
+                placeholder="Search by customer, bill or account no..."
                 value={search}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 className="pl-10 h-10 rounded-xl border-[#e2e8f0] bg-[#f8fafc] text-sm"
@@ -374,7 +383,7 @@ export default function ReportsPage() {
                     A/C No.
                   </TableHead>
                   <TableHead className="w-[24%] text-[#64748b] font-semibold text-xs uppercase tracking-wide">
-                    Bill No.
+                    Customer
                   </TableHead>
                   <TableHead className="w-[10%] text-[#64748b] font-semibold text-xs uppercase tracking-wide">
                     Volume(L)
@@ -418,7 +427,7 @@ export default function ReportsPage() {
                           {accountNoFromCustomer(bill.customerId)}
                         </TableCell>
                         <TableCell className="text-[13px] font-medium text-[#0f172a] truncate pr-3">
-                          {bill.billNo}
+                          {customerNameFromBill(bill.customerId)}
                         </TableCell>
                         <TableCell className="text-[14px] text-[#334155]">
                           {billVolume(bill)}
