@@ -124,7 +124,7 @@ export async function listProducts(
   tenantId: Types.ObjectId,
   filters?: { brandId?: string; type?: string; search?: string }
 ) {
-  const filter = buildProductFilter(tenantId, filters);
+  const filter = await buildProductFilter(tenantId, filters);
 
   const products = await ProductModel.find(filter)
     .populate('brand', 'name')
@@ -134,7 +134,7 @@ export async function listProducts(
   return products.map((p) => serializeProduct(p as Record<string, unknown>));
 }
 
-export function buildProductFilter(
+export async function buildProductFilter(
   tenantId: Types.ObjectId,
   filters?: { brandId?: string; type?: string; search?: string }
 ) {
@@ -143,11 +143,19 @@ export function buildProductFilter(
   if (filters?.type) filter.type = filters.type;
   if (filters?.search?.trim()) {
     const q = filters.search.trim();
+    const matchingBrands = await BrandModel.find({
+      tenantId,
+      name: { $regex: q, $options: 'i' },
+    })
+      .select('_id')
+      .lean();
+    const brandIds = matchingBrands.map((b) => b._id);
     filter.$or = [
       { name: { $regex: q, $options: 'i' } },
       { productCode: { $regex: q, $options: 'i' } },
       { type: { $regex: q, $options: 'i' } },
       { base: { $regex: q, $options: 'i' } },
+      ...(brandIds.length > 0 ? [{ brand: { $in: brandIds } }] : []),
     ];
   }
   return filter;
@@ -166,7 +174,7 @@ export async function listProductsPaginated(
   const page = Math.max(1, options.page ?? 1);
   const limit = Math.min(100, Math.max(1, options.limit ?? 20));
   const skip = (page - 1) * limit;
-  const filter = buildProductFilter(tenantId, options);
+  const filter = await buildProductFilter(tenantId, options);
 
   const [products, total] = await Promise.all([
     ProductModel.find(filter)

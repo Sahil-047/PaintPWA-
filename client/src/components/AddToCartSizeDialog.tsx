@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Product } from '@paint-saas/shared-types';
-import { PAINT_SIZES } from '@paint-saas/shared-types';
+import { PAINT_SIZES, formatPackSizeLabel } from '@paint-saas/shared-types';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,22 +15,26 @@ import ProductImage from '@/components/ProductImage';
 export interface SizeOption {
   size: string;
   stock: number;
+  label: string;
 }
 
 export function getProductSizeOptions(product: Product): SizeOption[] {
   const fromSizes = PAINT_SIZES.map((size) => ({
     size,
     stock: product.stockBySize?.[size] ?? 0,
+    label: formatPackSizeLabel(size, product.unit),
   })).filter((s) => s.stock > 0);
 
   if (fromSizes.length > 0) return fromSizes;
 
   const total = product.stockQty ?? product.stock ?? 0;
   if (total > 0) {
+    const u = product.unit || 'unit';
     return [
       {
-        size: product.unit || 'unit',
+        size: u,
         stock: total,
+        label: u,
       },
     ];
   }
@@ -101,7 +105,7 @@ export default function AddToCartSizeDialog({
                   )}
                 >
                   <div>
-                    <p className="font-semibold text-[#0f172a]">{opt.size}</p>
+                    <p className="font-semibold text-[#0f172a]">{opt.label}</p>
                     <p className="text-xs text-[#64748b] mt-0.5">
                       {left > 0 ? `${left} available` : 'In cart / out of stock'}
                       {inCart > 0 && left > 0 && ` · ${inCart} in cart`}

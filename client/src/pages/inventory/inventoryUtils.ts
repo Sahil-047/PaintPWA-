@@ -36,6 +36,8 @@ export function productSearchMatch(p: Product, q: string) {
   return (
     p.name.toLowerCase().includes(s) ||
     p.productCode.toLowerCase().includes(s) ||
-    (p.type?.toLowerCase().includes(s) ?? false)
+    (p.type?.toLowerCase().includes(s) ?? false) ||
+    (p.base?.toLowerCase().includes(s) ?? false) ||
+    (p.brandName?.toLowerCase().includes(s) ?? false)
   );
 }

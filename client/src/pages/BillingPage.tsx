@@ -18,7 +18,7 @@ import AddToCartSizeDialog, {
 import ProductImage from '@/components/ProductImage';
 import { billingApi, cashmemoApi, type PaginationMeta } from '@/api';
 import type { Product } from '@paint-saas/shared-types';
-import { PAINT_SIZES } from '@paint-saas/shared-types';
+import { PAINT_SIZES, formatPackSizeLabel } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -39,6 +39,8 @@ interface CartItem {
   variant: string;
   base?: string;
   packSize: string;
+  packSizeLabel: string;
+  unit?: string;
   productImage?: string;
   price: number;
   quantity: number;
@@ -82,10 +84,10 @@ function sizeSummary(product: Product) {
   const opts = getProductSizeOptions(product);
   if (opts.length === 0) return { total: 0, label: '—' };
   if (opts.length === 1 && !isPaintPackSize(opts[0].size)) {
-    return { total: opts[0].stock, label: `${opts[0].stock} ${opts[0].size}` };
+    return { total: opts[0].stock, label: `${opts[0].stock} ${opts[0].label}` };
   }
   const total = opts.reduce((s, o) => s + o.stock, 0);
-  const label = opts.map((o) => `${o.size}:${o.stock}`).join(' · ');
+  const label = opts.map((o) => `${o.label}:${o.stock}`).join(' · ');
   return { total, label };
 }
 
@@ -163,12 +165,13 @@ export default function BillingPage() {
 
   function addToCartWithSize(product: Product, opt: SizeOption) {
     const packSize = opt.size;
+    const packSizeLabel = opt.label;
     const lineId = cartLineId(product._id, packSize);
     const existing = cart.find((c) => c.cartItemId === lineId);
 
     if (existing) {
       if (existing.quantity >= opt.stock) {
-        toast.error(`Only ${opt.stock} in stock for ${packSize}`);
+        toast.error(`Only ${opt.stock} in stock for ${packSizeLabel}`);
         return;
       }
       setCart(
@@ -187,6 +190,8 @@ export default function BillingPage() {
           variant: productVariantLabel(product),
           base: product.base,
           packSize,
+          packSizeLabel,
+          unit: product.unit,
           productImage: product.productImage,
           price: 0,
           quantity: 1,
@@ -194,7 +199,7 @@ export default function BillingPage() {
         },
       ]);
     }
-    toast.success(`${product.name} (${packSize}) added`);
+    toast.success(`${product.name} (${packSizeLabel}) added`);
   }
 
   function startAddProduct(product: Product) {
@@ -223,7 +228,7 @@ export default function BillingPage() {
           const qty = item.quantity + delta;
           if (qty <= 0) return null;
           if (qty > item.stockQty) {
-            toast.error(`Only ${item.stockQty} in stock for ${item.packSize}`);
+            toast.error(`Only ${item.stockQty} in stock for ${item.packSizeLabel || item.packSize}`);
             return item;
           }
           return { ...item, quantity: qty };
@@ -250,7 +255,7 @@ export default function BillingPage() {
     const newLineId = cartLineId(item.productId, newSize);
     const existing = cart.find((c) => c.cartItemId === newLineId);
     if (existing && existing.cartItemId !== item.cartItemId) {
-      toast.error(`${newSize} already in cart — adjust quantity there`);
+      toast.error(`${opt.label} already in cart — adjust quantity there`);
       return;
     }
     setCart(
@@ -260,6 +265,8 @@ export default function BillingPage() {
               ...c,
               cartItemId: newLineId,
               packSize: newSize,
+              packSizeLabel: opt.label,
+              unit: product.unit,
               stockQty: opt.stock,
               quantity: Math.min(c.quantity, opt.stock),
             }
@@ -639,20 +646,24 @@ export default function BillingPage() {
                                   product && changeCartSize(item, v, product)
                                 }
                               >
-                                <SelectTrigger className="h-8 w-[88px] text-xs border-[#e2e8f0]">
-                                  <SelectValue />
+                                <SelectTrigger className="h-8 w-[100px] text-xs border-[#e2e8f0]">
+                                  <SelectValue>
+                                    {item.packSizeLabel ||
+                                      formatPackSizeLabel(item.packSize, item.unit)}
+                                  </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent className="bg-white">
                                   {sizeOptions.map((o) => (
                                     <SelectItem key={o.size} value={o.size} className="bg-white">
-                                      {o.size} ({o.stock})
+                                      {o.label} ({o.stock})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             ) : (
                               <span className="text-xs font-semibold text-[#2563eb] bg-[#eff6ff] px-2 py-1 rounded-md border border-[#bfdbfe]">
-                                {item.packSize}
+                                {item.packSizeLabel ||
+                                  formatPackSizeLabel(item.packSize, item.unit || product?.unit)}
                               </span>
                             )}
                           </div>

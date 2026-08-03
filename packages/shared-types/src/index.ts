@@ -43,6 +43,10 @@ export const PAINT_SIZES = ['50ml', '100ml', '200ml', '500ml', '1L', '4L', '10L'
 export type PaintSize = (typeof PAINT_SIZES)[number];
 export type SizeMap = Record<PaintSize, number>;
 
+/** Common product units — pack size labels follow the selected unit (L → kg, Pck, etc.) */
+export const PRODUCT_UNITS = ['L', 'kg', 'Pck', 'pcs', 'bag', 'box'] as const;
+export type ProductUnit = (typeof PRODUCT_UNITS)[number];
+
 export function emptySizeMap(): SizeMap {
   return {
     '50ml': 0,
@@ -54,6 +58,26 @@ export function emptySizeMap(): SizeMap {
     '10L': 0,
     '20L': 0,
   };
+}
+
+function isLitreUnit(unit?: string) {
+  return /^(l|ltr|litre|liter|litres|liters)$/i.test((unit ?? 'L').trim() || 'L');
+}
+
+/**
+ * Display pack size using the product unit.
+ * Storage keys stay as PAINT_SIZES (e.g. 1L); labels become "1 kg", "1 Pck", etc.
+ */
+export function formatPackSizeLabel(size: string, unit?: string): string {
+  const u = (unit ?? 'L').trim() || 'L';
+  if (isLitreUnit(u)) {
+    if (/ml$/i.test(size)) return size.replace(/ml$/i, ' ml');
+    if (/L$/i.test(size)) return size.replace(/L$/i, ' L');
+    return size;
+  }
+  const m = size.match(/^(\d+(?:\.\d+)?)/);
+  if (!m) return size;
+  return `${m[1]} ${u}`;
 }
 
 export interface Brand {

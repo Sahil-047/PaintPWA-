@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { inventoryApi } from '@/api';
 import type { Brand, Product, ProductType } from '@paint-saas/shared-types';
-import { PAINT_SIZES, emptySizeMap } from '@paint-saas/shared-types';
+import { PAINT_SIZES, PRODUCT_UNITS, emptySizeMap, formatPackSizeLabel } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth.store';
@@ -103,9 +103,11 @@ function primaryPackSize(p: Product): string {
       best = size;
     }
   }
-  if (best) return best.replace('ml', ' ml').replace(/^(\d+)L$/, '$1 L');
+  if (best) return formatPackSizeLabel(best, p.unit);
   const withStock = PAINT_SIZES.filter((s) => (p.stockBySize?.[s] ?? 0) > 0);
-  if (withStock.length) return withStock.join(', ');
+  if (withStock.length) {
+    return withStock.map((s) => formatPackSizeLabel(s, p.unit)).join(', ');
+  }
   return '—';
 }
 
@@ -715,7 +717,12 @@ export default function InventoryPage() {
               <MoreVertical className="w-4 h-4 pointer-events-none" />
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={6} className="min-w-[172px]">
+          <DropdownMenuContent
+            align="end"
+            sideOffset={6}
+            collisionPadding={12}
+            className="min-w-[172px] max-h-none overflow-visible"
+          >
             {children}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -777,8 +784,19 @@ export default function InventoryPage() {
               size="sm"
               className="h-8 w-8 p-0 text-[#64748b] hover:text-[#2563eb]"
               onClick={() => openEditProduct(product)}
+              aria-label="Edit product"
             >
               <Pencil className="w-4 h-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-[#64748b] hover:text-[#dc2626]"
+              onClick={() => deleteProduct(product)}
+              aria-label="Delete product"
+            >
+              <Trash2 className="w-4 h-4" />
             </Button>
             <ActionMenu>
               <DropdownMenuItem
@@ -792,14 +810,6 @@ export default function InventoryPage() {
                 onSelect={() => openStockDialog(product)}
               >
                 <PackagePlus className="w-4 h-4 mr-2" /> Adjust stock
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                variant="destructive"
-                className="cursor-pointer text-red-600 focus:text-red-600"
-                onSelect={() => deleteProduct(product)}
-              >
-                <Trash2 className="w-4 h-4 mr-2" /> Delete
               </DropdownMenuItem>
             </ActionMenu>
           </div>
@@ -819,7 +829,7 @@ export default function InventoryPage() {
             <Input
               placeholder={
                 selectedType
-                  ? 'Search products...'
+                  ? 'Search by name, code or base'
                   : selectedBrand
                     ? 'Search product types...'
                     : 'Search by brand name'
@@ -1028,13 +1038,12 @@ export default function InventoryPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  variant="destructive"
-                                  className="cursor-pointer text-red-600 focus:text-red-600"
+                                  className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
                                   onSelect={() =>
                                     setConfirmDelete({ kind: 'brand', id: brand._id, label: brand.name })
                                   }
                                 >
-                                  <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                  <Trash2 className="w-4 h-4 mr-2 text-red-600" /> Delete
                                 </DropdownMenuItem>
                               </ActionMenu>
                             </div>
@@ -1142,13 +1151,12 @@ export default function InventoryPage() {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                variant="destructive"
-                                className="cursor-pointer text-red-600 focus:text-red-600"
+                                className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50"
                                 onSelect={() =>
                                   setConfirmDelete({ kind: 'type', id: type._id, label: type.name })
                                 }
                               >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                                <Trash2 className="w-4 h-4 mr-2 text-red-600" /> Delete
                               </DropdownMenuItem>
                             </ActionMenu>
                           </div>
@@ -1206,7 +1214,7 @@ export default function InventoryPage() {
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
                     <Input
-                      placeholder="Search products..."
+                      placeholder="Search by name, code or base"
                       value={productSearch}
                       onChange={(e) => {
                         setProductSearch(e.target.value);
@@ -1548,8 +1556,15 @@ export default function InventoryPage() {
             Delete <strong className="text-[#0f172a]">{confirmDelete?.label}</strong>? This action cannot be undone.
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={executeDelete} disabled={saving}>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={executeDelete}
+              disabled={saving}
+              className="bg-[#dc2626] text-white hover:bg-[#b91c1c]"
+            >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Delete'}
             </Button>
           </DialogFooter>
@@ -1570,7 +1585,9 @@ export default function InventoryPage() {
                   <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {PAINT_SIZES.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                      <SelectItem key={s} value={s}>
+                        {formatPackSizeLabel(s, stockProduct.unit)}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1585,7 +1602,9 @@ export default function InventoryPage() {
                   placeholder="e.g. 10 or -5"
                 />
                 <p className="text-xs text-[#64748b]">
-                  Current: {stockProduct.stockBySize?.[stockSize as keyof typeof stockProduct.stockBySize] ?? 0} units
+                  Current:{' '}
+                  {stockProduct.stockBySize?.[stockSize as keyof typeof stockProduct.stockBySize] ?? 0}{' '}
+                  {stockProduct.unit || 'units'} ({formatPackSizeLabel(stockSize, stockProduct.unit)})
                 </p>
               </div>
             </div>
@@ -1622,7 +1641,29 @@ export default function InventoryPage() {
               </div>
               <div className="space-y-2">
                 <Label>Unit</Label>
-                <Input value={productForm.unit} onChange={(e) => setProductForm({ ...productForm, unit: e.target.value })} className="rounded-xl" />
+                <Select
+                  value={
+                    PRODUCT_UNITS.includes(productForm.unit as (typeof PRODUCT_UNITS)[number])
+                      ? productForm.unit
+                      : productForm.unit || 'L'
+                  }
+                  onValueChange={(v) => setProductForm({ ...productForm, unit: v })}
+                >
+                  <SelectTrigger className="rounded-xl w-full">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    {PRODUCT_UNITS.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u === 'L' ? 'L (Litre)' : u === 'kg' ? 'kg' : u === 'Pck' ? 'Pck (Pack)' : u}
+                      </SelectItem>
+                    ))}
+                    {productForm.unit &&
+                      !PRODUCT_UNITS.includes(productForm.unit as (typeof PRODUCT_UNITS)[number]) && (
+                        <SelectItem value={productForm.unit}>{productForm.unit}</SelectItem>
+                      )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
@@ -1630,11 +1671,19 @@ export default function InventoryPage() {
               <Input value={productForm.productImage} onChange={(e) => setProductForm({ ...productForm, productImage: e.target.value })} className="rounded-xl" />
             </div>
             <div>
-              <Label className="mb-2 block">Stock by size</Label>
+              <Label className="mb-2 block">
+                Stock by size
+                <span className="font-normal text-[#94a3b8]">
+                  {' '}
+                  · shown as {productForm.unit || 'L'}
+                </span>
+              </Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {PAINT_SIZES.map((size) => (
                   <div key={size} className="space-y-1">
-                    <Label className="text-xs text-[#64748b]">{size}</Label>
+                    <Label className="text-xs text-[#64748b]">
+                      {formatPackSizeLabel(size, productForm.unit)}
+                    </Label>
                     <Input
                       type="number"
                       min={0}

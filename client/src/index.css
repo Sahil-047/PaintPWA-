@@ -24,8 +24,8 @@
   --color-muted-foreground: 215.4 16.3% 46.9%;
   --color-accent: 210 40% 96.1%;
   --color-accent-foreground: 222.2 47.4% 11.2%;
-  --color-destructive: 0 84.2% 60.2%;
-  --color-destructive-foreground: 210 40% 98%;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #f8fafc;
   --color-border: 214.3 31.8% 91.4%;
   --color-input: 214.3 31.8% 91.4%;
   --color-ring: 222.2 84% 4.9%;
@@ -47,8 +47,8 @@
   --color-muted-foreground: 215 20.2% 65.1%;
   --color-accent: 217.2 32.6% 17.5%;
   --color-accent-foreground: 210 40% 98%;
-  --color-destructive: 0 62.8% 30.6%;
-  --color-destructive-foreground: 210 40% 98%;
+  --color-destructive: #991b1b;
+  --color-destructive-foreground: #f8fafc;
   --color-border: 217.2 32.6% 17.5%;
   --color-input: 217.2 32.6% 17.5%;
   --color-ring: 212.7 26.8% 83.9%;

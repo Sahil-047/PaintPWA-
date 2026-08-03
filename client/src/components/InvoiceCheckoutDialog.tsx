@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/select';
 import { accountsApi } from '@/api';
 import type { Customer } from '@paint-saas/shared-types';
+import { formatPackSizeLabel } from '@paint-saas/shared-types';
 import { cn, formatCurrency } from '@/lib/utils';
 import {
   Calendar,
@@ -32,6 +33,8 @@ export interface InvoiceCartLine {
   variant: string;
   base?: string;
   packSize: string;
+  packSizeLabel?: string;
+  unit?: string;
   productImage?: string;
   price: number;
   quantity: number;
@@ -483,7 +486,11 @@ export default function InvoiceCheckoutDialog({
                           <span className="text-[12px] font-semibold text-[#0f172a] tabular-nums">
                             {item.quantity}
                           </span>
-                          <span className="truncate text-[11px] text-[#64748b]">{item.packSize || '—'}</span>
+                          <span className="truncate text-[11px] text-[#64748b]">
+                            {item.packSizeLabel ||
+                              formatPackSizeLabel(item.packSize, item.unit) ||
+                              '—'}
+                          </span>
                         </div>
                       ))
                     )}
@@ -670,7 +677,11 @@ export default function InvoiceCheckoutDialog({
                           )}
                         </div>
                         <p className="text-center tabular-nums">{item.quantity}</p>
-                        <p className="text-center text-[#64748b]">{item.packSize || '—'}</p>
+                        <p className="text-center text-[#64748b]">
+                          {item.packSizeLabel ||
+                            formatPackSizeLabel(item.packSize, item.unit) ||
+                            '—'}
+                        </p>
                         <p className="text-right tabular-nums font-medium">
                           {formatCurrency(item.price * item.quantity)}
                         </p>
