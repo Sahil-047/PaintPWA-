@@ -17,6 +17,7 @@ import PaintersPage from '@/pages/PaintersPage';
 import PainterDetailsPage from '@/pages/PainterDetailsPage';
 import ExpensesPage from '@/pages/ExpensesPage';
 import ReturnsPage from '@/pages/ReturnsPage';
+import CashMemosPage from '@/pages/CashMemosPage';
 import SettingsPage from '@/pages/SettingsPage';
 import SeoHead from '@/components/SeoHead';
 
@@ -79,6 +80,11 @@ const SEO_CONFIG: Record<string, { title: string; description: string; robots?: 
   [ROUTES.EXPENSES]: {
     title: 'Expenses',
     description: 'Track shop miscellaneous expenses and painter payments in Paint ERP.',
+    robots: 'noindex, nofollow',
+  },
+  [ROUTES.CASHMEMOS]: {
+    title: 'Cash Memos',
+    description: 'Record customer advance cash memos as tokens for future purchases.',
     robots: 'noindex, nofollow',
   },
   [ROUTES.SETTINGS]: {
@@ -147,6 +153,7 @@ export default function App() {
             <Route path={ROUTES.PAINTERS} element={<PaintersPage />} />
             <Route path={ROUTES.PAINTER_DETAIL} element={<PainterDetailsPage />} />
             <Route path={ROUTES.EXPENSES} element={<ExpensesPage />} />
+            <Route path={ROUTES.CASHMEMOS} element={<CashMemosPage />} />
             <Route path={ROUTES.SETTINGS} element={<SettingsPage />} />
           </Route>
         </Route>

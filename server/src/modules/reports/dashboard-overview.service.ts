@@ -110,7 +110,7 @@ export async function getStoreDashboardOverview(
   const range = getPeriodRange(period);
   const prevRange = getPreviousPeriodRange(period);
 
-  const [billFacet, expenseFacet, returnFacet, waitingAgg] = await Promise.all([
+  const [billFacet, expenseFacet, returnFacet, waitingAgg, dueAgg] = await Promise.all([
     BillModel.aggregate([
       { $match: { tenantId } },
       {
@@ -141,6 +141,7 @@ export async function getStoreDashboardOverview(
             {
               $project: {
                 grandTotal: 1,
+                status: 1,
                 createdAt: 1,
                 customerId: 1,
               },
@@ -180,6 +181,7 @@ export async function getStoreDashboardOverview(
       { $match: { tenantId } },
       {
         $facet: {
+          allTime: [{ $group: { _id: null, total: { $sum: '$amount' } } }],
           current: [
             { $match: { date: { $gte: range.from, $lte: range.to } } },
             { $group: { _id: null, total: { $sum: '$amount' } } },
@@ -224,6 +226,23 @@ export async function getStoreDashboardOverview(
         },
       },
     ]),
+    AccountModel.aggregate([
+      { $match: { tenantId } },
+      {
+        $lookup: {
+          from: 'customers',
+          localField: 'customerId',
+          foreignField: '_id',
+          as: 'customer',
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalDue: { $sum: '$dueBalance' },
+        },
+      },
+    ]),
   ]);
 
   const bills = billFacet[0] ?? {
@@ -239,38 +258,34 @@ export async function getStoreDashboardOverview(
   }>;
   const previousBills = bills.previous as Array<{
     grandTotal?: number;
+    status?: string;
     customerId?: Types.ObjectId;
   }>;
 
   const periodRevenue = currentBills.reduce((s, b) => s + (b.grandTotal ?? 0), 0);
   const prevRevenue = previousBills.reduce((s, b) => s + (b.grandTotal ?? 0), 0);
-  const orders = currentBills.length;
-  const prevOrders = previousBills.length;
 
-  const customerIds = new Set(
-    currentBills.map((b) => String(b.customerId ?? '')).filter(Boolean)
-  );
-  const prevCustomerIds = new Set(
-    previousBills.map((b) => String(b.customerId ?? '')).filter(Boolean)
-  );
+  const totalDue = dueAgg[0]?.totalDue ?? 0;
+  const periodUnpaid = currentBills
+    .filter((b) => b.status !== 'paid')
+    .reduce((s, b) => s + (b.grandTotal ?? 0), 0);
+  const prevUnpaid = previousBills
+    .filter((b) => b.status !== 'paid')
+    .reduce((s, b) => s + (b.grandTotal ?? 0), 0);
 
   const periodExpense = expenseFacet[0]?.current?.[0]?.total ?? 0;
   const prevExpense = expenseFacet[0]?.previous?.[0]?.total ?? 0;
+  const allTimeExpenses = expenseFacet[0]?.allTime?.[0]?.total ?? 0;
   const periodReturns = returnFacet[0]?.current?.[0]?.total ?? 0;
   const prevReturns = returnFacet[0]?.previous?.[0]?.total ?? 0;
 
-  const netProfit = Math.max(0, periodRevenue - periodExpense - periodReturns);
-  const prevProfit = Math.max(0, prevRevenue - prevExpense - prevReturns);
+  const netRevenue = Math.max(0, periodRevenue - periodReturns);
+  const prevNetRevenue = Math.max(0, prevRevenue - prevReturns);
 
   const awaitingBills = currentBills.filter((b) => b.status !== 'paid').length;
 
   const dueAccounts = waitingAgg as Array<{ customerId?: Types.ObjectId }>;
-  let waitingCustomers = dueAccounts.length;
-  if (customerIds.size > 0) {
-    waitingCustomers = dueAccounts.filter((a) =>
-      customerIds.has(String(a.customerId ?? ''))
-    ).length;
-  }
+  const waitingCustomers = dueAccounts.length;
 
   const dailyMap = new Map(
     (bills.dailyRevenue as Array<{ _id: string; value: number }>).map((d) => [d._id, d.value])
@@ -301,12 +316,12 @@ export async function getStoreDashboardOverview(
     metrics: {
       revenue: periodRevenue,
       revenueTrend: pctChange(periodRevenue, prevRevenue),
-      orders,
-      ordersTrend: pctChange(orders, prevOrders),
-      customers: customerIds.size,
-      customersTrend: pctChange(customerIds.size, prevCustomerIds.size),
-      netProfit,
-      profitTrend: pctChange(netProfit, prevProfit),
+      totalDue,
+      totalDueTrend: pctChange(periodUnpaid, prevUnpaid),
+      totalExpenses: allTimeExpenses,
+      totalExpensesTrend: pctChange(periodExpense, prevExpense),
+      netRevenue,
+      netRevenueTrend: pctChange(netRevenue, prevNetRevenue),
     },
     awaitingBills,
     waitingCustomers,

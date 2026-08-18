@@ -81,13 +81,24 @@ export async function addPaymentToAccount(
   tenantId: Types.ObjectId,
   customerId: Types.ObjectId,
   _memoId: Types.ObjectId,
-  amountPaid: number
+  amountPaid: number,
+  options?: { asAdvance?: boolean }
 ) {
-  const account = await AccountModel.findOne({ tenantId, customerId });
-  if (!account) return null;
+  let account = await AccountModel.findOne({ tenantId, customerId });
+  if (!account) {
+    account = await AccountModel.create({
+      tenantId,
+      customerId,
+      totalBilled: 0,
+      totalPaid: 0,
+      dueBalance: 0,
+      creditBalance: 0,
+      lastActivityAt: new Date(),
+    });
+  }
 
   account.totalPaid += amountPaid;
-  syncAccountLedger(account);
+  syncAccountLedger(account, { absorbOverpay: options?.asAdvance ?? false });
   await account.save();
   await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
   return account;
@@ -132,38 +143,42 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
   let account = await AccountModel.findOne({ tenantId, customerId });
   const bills = await BillModel.find({ tenantId, customerId }).sort({ createdAt: -1 });
 
-  const memos = await CashMemoModel.find({ tenantId, customerId })
-    .populate('billId', 'billNo grandTotal')
-    .sort({ paidAt: -1 });
+  const memos = await CashMemoModel.find({ tenantId, customerId }).sort({ paidAt: -1 });
 
   // Keep ledger aligned with invoice + payment truth (repairs older return sync quirks).
   if (account) {
     const billedFromInvoices = Number(
       bills.reduce((s, b) => s + (b.grandTotal ?? 0), 0).toFixed(2)
     );
-    const paidFromMemos = Number(memos.reduce((s, m) => s + (m.amountPaid ?? 0), 0).toFixed(2));
+    const paidFromBills = Number(
+      bills.reduce((s, b) => s + (b.amountPaid ?? 0), 0).toFixed(2)
+    );
+    const paidFromAdvances = Number(
+      memos
+        .filter((m) => !m.billId)
+        .reduce((s, m) => s + (m.amountPaid ?? 0), 0)
+        .toFixed(2)
+    );
+    const paidFromLegacyMemos = Number(
+      memos
+        .filter((m) => Boolean(m.billId))
+        .reduce((s, m) => s + (m.amountPaid ?? 0), 0)
+        .toFixed(2)
+    );
+    const paidFromSources = Number(
+      (paidFromBills + paidFromAdvances + paidFromLegacyMemos).toFixed(2)
+    );
     const billedDrift = Math.abs((account.totalBilled ?? 0) - billedFromInvoices) > 0.009;
-    const paidDrift = Math.abs((account.totalPaid ?? 0) - paidFromMemos) > 0.009;
+    const paidDrift = Math.abs((account.totalPaid ?? 0) - paidFromSources) > 0.009;
     if (billedDrift || paidDrift) {
       account.totalBilled = billedFromInvoices;
-      account.totalPaid = paidFromMemos;
+      account.totalPaid = paidFromSources;
       account.creditBalance = 0;
       syncAccountLedger(account, { absorbOverpay: true });
       await account.save();
     }
     await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
   }
-
-  const billIds = bills.map((b) => b._id);
-  const paidAgg =
-    billIds.length > 0
-      ? await CashMemoModel.aggregate([
-          { $match: { tenantId, billId: { $in: billIds } } },
-          { $group: { _id: '$billId', total: { $sum: '$amountPaid' } } },
-        ])
-      : [];
-
-  const paidMap = new Map(paidAgg.map((p) => [String(p._id), p.total as number]));
 
   const returns = await ReturnItemModel.find({ tenantId, customerId })
     .populate('billId', 'billNo')
@@ -178,14 +193,24 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
     returnedByBill.set(bid, (returnedByBill.get(bid) ?? 0) + (ret.amount ?? 0));
   }
 
+  const paidByLegacyMemo = new Map<string, number>();
+  for (const memo of memos) {
+    if (!memo.billId) continue;
+    const bid = String(memo.billId);
+    paidByLegacyMemo.set(bid, (paidByLegacyMemo.get(bid) ?? 0) + (memo.amountPaid ?? 0));
+  }
+
   const billsWithPaid = bills.map((bill) => {
-    const amountPaid = paidMap.get(String(bill._id)) ?? 0;
+    const amountPaid = bill.amountPaid ?? 0;
+    const creditApplied = bill.creditApplied ?? 0;
+    const legacyPaid = paidByLegacyMemo.get(String(bill._id)) ?? 0;
+    const received = Number((amountPaid + creditApplied + legacyPaid).toFixed(2));
     const returnedAmount = returnedByBill.get(String(bill._id)) ?? 0;
     return {
       ...bill.toObject(),
-      amountPaid,
-      balanceDue: Math.max(0, bill.grandTotal - amountPaid),
-      billCredit: Math.max(0, amountPaid - bill.grandTotal),
+      amountPaid: received,
+      balanceDue: Math.max(0, bill.grandTotal - received),
+      billCredit: Math.max(0, received - bill.grandTotal),
       returnedAmount,
     };
   });

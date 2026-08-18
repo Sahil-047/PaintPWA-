@@ -6,10 +6,9 @@ import { buildPdfKey, savePdfByKey } from '../../utils/pdf.storage.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { CustomerModel } from '../accounts/customer.model.js';
 import { TenantModel, UserModel } from '../auth/auth.model.js';
-import * as cashmemoService from '../cashmemo/cashmemo.service.js';
 import * as inventoryService from '../inventory/inventory.service.js';
 import { BillModel } from './billing.model.js';
-import type { CreateBillInput } from './billing.validator.js';
+import type { CreateBillInput, RecordBillPaymentInput } from './billing.validator.js';
 
 /** Shop profile from Settings / tenant — used as invoice “Billed by”. */
 async function getShopBillingIdentity(tenantId: Types.ObjectId) {
@@ -31,6 +30,34 @@ async function getShopBillingIdentity(tenantId: Types.ObjectId) {
     billedByEmail: email || undefined,
     billedByAddress: addressLines || undefined,
     soldBy: shopName,
+  };
+}
+
+function billReceived(bill: { amountPaid?: number; creditApplied?: number }) {
+  return Number(((bill.amountPaid ?? 0) + (bill.creditApplied ?? 0)).toFixed(2));
+}
+
+function billStatusFromReceived(grandTotal: number, received: number): 'paid' | 'partial' | 'due' {
+  if (received >= grandTotal - 0.001) return 'paid';
+  if (received > 0) return 'partial';
+  return 'due';
+}
+
+function billPdfFields(bill: {
+  grandTotal: number;
+  amountPaid?: number;
+  creditApplied?: number;
+  status?: 'paid' | 'partial' | 'due';
+}) {
+  const amountPaid = bill.amountPaid ?? 0;
+  const creditApplied = bill.creditApplied ?? 0;
+  const received = billReceived(bill);
+  return {
+    amountPaid,
+    creditApplied,
+    received,
+    balanceDue: Math.max(0, Number((bill.grandTotal - received).toFixed(2))),
+    status: bill.status ?? billStatusFromReceived(bill.grandTotal, received),
   };
 }
 
@@ -68,7 +95,8 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   const discount = input.discount ?? 0;
   const grandTotal = Math.max(0, subtotal - discount);
 
-  const amountPaid = input.amountPaid ?? 0;
+  const amountPaid = Math.min(input.amountPaid ?? 0, grandTotal);
+  const paymentMode = input.paymentMode ?? 'cash';
 
   const bill = await BillModel.create({
     tenantId,
@@ -78,6 +106,9 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     subtotal,
     discount,
     grandTotal,
+    amountPaid: 0,
+    creditApplied: 0,
+    paymentMode,
     status: 'due',
   });
 
@@ -88,25 +119,25 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     grandTotal
   );
 
-  let cashMemo = null;
   if (amountPaid > 0) {
-    cashMemo = await cashmemoService.createCashMemo(tenantId, {
-      billId: (bill._id as Types.ObjectId).toString(),
-      customerId: (customer._id as Types.ObjectId).toString(),
-      amountPaid,
-      paymentMode: input.paymentMode ?? 'cash',
-    });
+    await accountsService.addPaymentToAccount(
+      tenantId,
+      customer._id as Types.ObjectId,
+      bill._id as Types.ObjectId,
+      amountPaid
+    );
   }
 
-  const totalSettled = creditApplied + amountPaid;
-  if (totalSettled >= grandTotal) bill.status = 'paid';
-  else if (totalSettled > 0) bill.status = 'partial';
-  else bill.status = 'due';
+  const received = Number((creditApplied + amountPaid).toFixed(2));
+  bill.amountPaid = amountPaid;
+  bill.creditApplied = creditApplied;
+  bill.status = billStatusFromReceived(grandTotal, received);
   await bill.save();
 
   const customerDoc = await CustomerModel.findById(customer._id);
   const shop = await getShopBillingIdentity(tenantId);
   const issuedAt = new Date().toISOString();
+  const pay = billPdfFields(bill);
   const pdfBuffer = await generateBillPdf({
     billNo: bill.billNo,
     firmName: shop.firmName,
@@ -128,10 +159,14 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     grandTotal,
     date: issuedAt,
     dueDate: issuedAt,
-    status: bill.status,
+    status: pay.status,
     orderRef: bill.billNo,
     soldBy: shop.soldBy,
     delivery: 'Store pickup',
+    amountPaid: pay.amountPaid,
+    creditApplied: pay.creditApplied,
+    received: pay.received,
+    balanceDue: pay.balanceDue,
   });
 
   const pdfKey = buildPdfKey(String(tenantId), 'bill', bill.billNo);
@@ -139,7 +174,7 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   bill.pdfUrl = pdfKey;
   await bill.save();
 
-  return { bill, cashMemo, pdfBuffer, creditApplied };
+  return { bill, cashMemo: null, pdfBuffer, creditApplied };
 }
 
 export async function listBillingProducts(
@@ -180,6 +215,7 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
   const shop = await getShopBillingIdentity(tenantId);
   const createdAt =
     (bill as { createdAt?: Date }).createdAt?.toISOString?.() ?? new Date().toISOString();
+  const pay = billPdfFields(bill);
 
   const buffer = await generateBillPdf({
     billNo: bill.billNo,
@@ -201,10 +237,14 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
     grandTotal: bill.grandTotal,
     date: createdAt,
     dueDate: createdAt,
-    status: bill.status,
+    status: pay.status,
     orderRef: bill.billNo,
     soldBy: shop.soldBy,
     delivery: 'Store pickup',
+    amountPaid: pay.amountPaid,
+    creditApplied: pay.creditApplied,
+    received: pay.received,
+    balanceDue: pay.balanceDue,
   });
 
   const key = bill.pdfUrl ?? buildPdfKey(String(tenantId), 'bill', bill.billNo);
@@ -214,4 +254,37 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
     await bill.save();
   }
   return buffer;
+}
+
+export async function recordBillPayment(
+  tenantId: Types.ObjectId,
+  billId: string,
+  input: RecordBillPaymentInput
+) {
+  const bill = await BillModel.findOne({ _id: billId, tenantId });
+  if (!bill) throw new AppError('Bill not found', 404);
+
+  const alreadyReceived = billReceived(bill);
+  const remaining = Math.max(0, Number((bill.grandTotal - alreadyReceived).toFixed(2)));
+  if (input.amountPaid > remaining + 0.001) {
+    throw new AppError(
+      `Amount exceeds balance due (₹${remaining.toFixed(2)}) for invoice ${bill.billNo}`,
+      400
+    );
+  }
+
+  bill.amountPaid = Number(((bill.amountPaid ?? 0) + input.amountPaid).toFixed(2));
+  if (input.paymentMode) bill.paymentMode = input.paymentMode;
+  bill.status = billStatusFromReceived(bill.grandTotal, billReceived(bill));
+  await bill.save();
+
+  await accountsService.addPaymentToAccount(
+    tenantId,
+    bill.customerId as Types.ObjectId,
+    bill._id as Types.ObjectId,
+    input.amountPaid
+  );
+
+  await getBillPdf(tenantId, String(bill._id));
+  return getBill(tenantId, String(bill._id));
 }

@@ -16,6 +16,9 @@ export interface IBill extends Document {
   subtotal: number;
   discount: number;
   grandTotal: number;
+  amountPaid: number;
+  creditApplied: number;
+  paymentMode?: string;
   pdfUrl?: string;
   status: 'paid' | 'partial' | 'due';
 }
@@ -40,6 +43,9 @@ const billSchema = new Schema<IBill>(
     subtotal: { type: Number, required: true, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
     grandTotal: { type: Number, required: true, min: 0 },
+    amountPaid: { type: Number, default: 0, min: 0 },
+    creditApplied: { type: Number, default: 0, min: 0 },
+    paymentMode: { type: String, trim: true },
     pdfUrl: { type: String },
     status: { type: String, enum: ['paid', 'partial', 'due'], default: 'due' },
   },

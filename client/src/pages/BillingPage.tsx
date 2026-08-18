@@ -16,7 +16,7 @@ import AddToCartSizeDialog, {
   type SizeOption,
 } from '@/components/AddToCartSizeDialog';
 import ProductImage from '@/components/ProductImage';
-import { billingApi, cashmemoApi, type PaginationMeta } from '@/api';
+import { billingApi, type PaginationMeta } from '@/api';
 import type { Product } from '@paint-saas/shared-types';
 import { PAINT_SIZES, formatPackSizeLabel } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
@@ -321,9 +321,9 @@ export default function BillingPage() {
       if (payload.amountPaid <= 0) {
         toast.success('Invoice created — full amount due');
       } else if (payload.amountPaid < billTotal) {
-        toast.success('Invoice created — give the payment challan to the customer');
+        toast.success('Invoice created — partial payment shown on the bill PDF');
       } else {
-        toast.success('Invoice created — paid in full (challan ready)');
+        toast.success('Invoice created — paid in full');
       }
       setCart([]);
       setCheckoutOpen(false);
@@ -331,19 +331,10 @@ export default function BillingPage() {
       setDiscountChecked(false);
       await loadProducts(1, false);
 
-      // Open invoice PDF; if money was received, also open cash memo challan as customer proof
       const billId = result.bill?._id;
-      const memoId = result.cashMemo?._id;
       if (billId) {
         try {
           await billingApi.openPdf(billId, result.bill.billNo);
-        } catch {
-          /* non-blocking */
-        }
-      }
-      if (memoId) {
-        try {
-          await cashmemoApi.openPdf(memoId);
         } catch {
           /* non-blocking */
         }

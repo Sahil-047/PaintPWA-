@@ -33,3 +33,10 @@ export const billingProductsQuerySchema = z.object({
 });
 
 export type BillingProductsQuery = z.infer<typeof billingProductsQuerySchema>;
+
+export const recordBillPaymentSchema = z.object({
+  amountPaid: z.number().min(0.01),
+  paymentMode: z.string().optional(),
+});
+
+export type RecordBillPaymentInput = z.infer<typeof recordBillPaymentSchema>;

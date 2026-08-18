@@ -1,7 +1,6 @@
 import { Types } from 'mongoose';
 import { AccountModel } from '../accounts/accounts.model.js';
 import { BillModel } from '../billing/billing.model.js';
-import { CashMemoModel } from '../cashmemo/cashmemo.model.js';
 import { ExpenseModel } from '../expenses/expenses.model.js';
 import { ReturnItemModel } from '../returns/returns.model.js';
 import { ReportSnapshotModel } from './reports.model.js';
@@ -20,9 +19,9 @@ export async function getLiveDashboard(tenantId: Types.ObjectId) {
       { $match: { tenantId } },
       { $group: { _id: null, total: { $sum: '$grandTotal' } } },
     ]),
-    CashMemoModel.aggregate([
+    AccountModel.aggregate([
       { $match: { tenantId } },
-      { $group: { _id: null, total: { $sum: '$amountPaid' } } },
+      { $group: { _id: null, total: { $sum: '$totalPaid' } } },
     ]),
     AccountModel.aggregate([
       { $match: { tenantId } },
@@ -85,8 +84,8 @@ export async function buildMonthlySnapshot(tenantId: Types.ObjectId, period: str
       { $match: { tenantId, createdAt: { $gte: from, $lte: to } } },
       { $group: { _id: null, total: { $sum: '$grandTotal' } } },
     ]),
-    CashMemoModel.aggregate([
-      { $match: { tenantId, paidAt: { $gte: from, $lte: to } } },
+    BillModel.aggregate([
+      { $match: { tenantId, createdAt: { $gte: from, $lte: to } } },
       { $group: { _id: null, total: { $sum: '$amountPaid' } } },
     ]),
     AccountModel.aggregate([

@@ -410,8 +410,8 @@ export default function InvoiceCheckoutDialog({
                     className={cn(inputClass, 'mt-1.5')}
                   />
                   <p className="mt-1.5 text-[11px] text-[#64748b]">
-                    Creates a cash memo challan for the customer. Enter less than the bill total for
-                    partial payment; leave 0 if nothing is paid today.
+                    Shown on the invoice as Received vs Balance due. No cash memo is created from
+                    billing. Leave 0 if nothing is paid today.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
@@ -428,12 +428,12 @@ export default function InvoiceCheckoutDialog({
                   )}
                   {isPartialPayment && (
                     <span className="inline-flex rounded-full bg-[#fef9c3] px-2.5 py-0.5 text-[11px] font-semibold text-[#a16207] border border-[#fde047]">
-                      Partial · cash memo
+                      Partial
                     </span>
                   )}
                   {amountPaid >= billTotal && billTotal > 0 && (
                     <span className="inline-flex rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-semibold text-[#15803d] border border-[#bbf7d0]">
-                      Paid · cash memo
+                      Paid
                     </span>
                   )}
                 </div>

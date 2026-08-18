@@ -15,6 +15,7 @@ export const ROUTES = {
   PAINTERS: '/painters',
   PAINTER_DETAIL: '/painters/:painterId',
   EXPENSES: '/expenses',
+  CASHMEMOS: '/cashmemos',
   SETTINGS: '/settings',
 } as const;
 

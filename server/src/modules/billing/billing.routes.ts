@@ -11,6 +11,7 @@ router.use(authMiddleware, approvedTenantMiddleware, tenantMiddleware);
 router.get('/', billingController.list);
 router.post('/', billingController.create);
 router.get('/products', billingController.listProducts);
+router.post('/:id/payment', billingController.recordPayment);
 router.get('/:id/pdf', billingController.downloadPdf);
 router.get('/:id', billingController.getOne);
 

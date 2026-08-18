@@ -41,10 +41,6 @@ function formatMoney(amount: number) {
   return `₹ ${Math.round(amount).toLocaleString('en-IN')}`;
 }
 
-function formatCompact(amount: number) {
-  return Math.round(amount).toLocaleString('en-IN');
-}
-
 function MetricCard({
   label,
   value,
@@ -167,12 +163,12 @@ const emptyOverview: DashboardOverview = {
   metrics: {
     revenue: 0,
     revenueTrend: { pct: '0,00', up: true },
-    orders: 0,
-    ordersTrend: { pct: '0,00', up: true },
-    customers: 0,
-    customersTrend: { pct: '0,00', up: true },
-    netProfit: 0,
-    profitTrend: { pct: '0,00', up: true },
+    totalDue: 0,
+    totalDueTrend: { pct: '0,00', up: true },
+    totalExpenses: 0,
+    totalExpensesTrend: { pct: '0,00', up: true },
+    netRevenue: 0,
+    netRevenueTrend: { pct: '0,00', up: true },
   },
   awaitingBills: 0,
   waitingCustomers: 0,
@@ -252,23 +248,23 @@ export default function DashboardPage() {
             loading={loading}
           />
           <MetricCard
-            label="Total orders"
-            value={String(metrics.orders)}
-            trend={metrics.ordersTrend}
+            label="Total Due"
+            value={formatMoney(metrics.totalDue)}
+            trend={metrics.totalDueTrend}
             compareLabel={compareLabel}
             loading={loading}
           />
           <MetricCard
-            label="Total customers"
-            value={formatCompact(metrics.customers)}
-            trend={metrics.customersTrend}
+            label="Total Expenses"
+            value={formatMoney(metrics.totalExpenses)}
+            trend={metrics.totalExpensesTrend}
             compareLabel={compareLabel}
             loading={loading}
           />
           <MetricCard
-            label="Net profit"
-            value={formatMoney(metrics.netProfit)}
-            trend={metrics.profitTrend}
+            label="Net revenue"
+            value={formatMoney(metrics.netRevenue)}
+            trend={metrics.netRevenueTrend}
             compareLabel={compareLabel}
             loading={loading}
           />
@@ -344,26 +340,26 @@ export default function DashboardPage() {
           <div className="xl:col-span-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3 sm:gap-4 lg:gap-5 content-start">
             <StatusCard
               icon={<Check className="w-5 h-5" strokeWidth={2.25} />}
-              value={metrics.orders}
-              unit="orders"
+              value={awaitingBills}
+              unit="bills"
               loading={loading}
               message={
                 <>
-                  {awaitingBills} orders{' '}
-                  <span className="text-[#ef4444] font-medium">are awaiting confirmation.</span>
+                  {awaitingBills} bills{' '}
+                  <span className="text-[#ef4444] font-medium">are awaiting payment.</span>
                 </>
               }
             />
             <StatusCard
               icon={<User className="w-5 h-5" strokeWidth={2.25} />}
-              value={metrics.customers}
+              value={waitingCustomers}
               unit="customers"
               decoration
               loading={loading}
               message={
                 <>
                   {waitingCustomers} customers{' '}
-                  <span className="text-[#ef4444] font-medium">are waiting for response.</span>
+                  <span className="text-[#ef4444] font-medium">have outstanding dues.</span>
                 </>
               }
             />

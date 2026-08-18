@@ -3,7 +3,6 @@ import { AppError } from '../../utils/appError.js';
 import { syncAccountLedger } from '../accounts/account-ledger.js';
 import { AccountModel } from '../accounts/accounts.model.js';
 import { BillModel } from '../billing/billing.model.js';
-import { CashMemoModel } from '../cashmemo/cashmemo.model.js';
 import * as inventoryService from '../inventory/inventory.service.js';
 import { ReturnItemModel } from './returns.model.js';
 import type { CreateReturnInput, ListReturnsQuery } from './returns.validator.js';
@@ -43,13 +42,10 @@ export async function createReturn(tenantId: Types.ObjectId, input: CreateReturn
   // Prefer invoice grandTotal delta so discounts stay consistent with account billed.
   const returnAmount = Number(Math.max(0, oldGrandTotal - bill.grandTotal).toFixed(2)) || lineReturnValue;
 
-  const paidAgg = await CashMemoModel.aggregate([
-    { $match: { tenantId, billId: bill._id } },
-    { $group: { _id: null, total: { $sum: '$amountPaid' } } },
-  ]);
-  const paid = paidAgg[0]?.total ?? 0;
-  if (paid >= bill.grandTotal) bill.status = 'paid';
-  else if (paid > 0) bill.status = 'partial';
+  const paid = bill.amountPaid ?? 0;
+  const received = Number((paid + (bill.creditApplied ?? 0)).toFixed(2));
+  if (received >= bill.grandTotal) bill.status = 'paid';
+  else if (received > 0) bill.status = 'partial';
   else bill.status = 'due';
   await bill.save();
 

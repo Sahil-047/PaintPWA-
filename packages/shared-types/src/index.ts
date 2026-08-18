@@ -144,17 +144,20 @@ export interface Bill {
   subtotal: number;
   discount: number;
   grandTotal: number;
+  amountPaid?: number;
+  creditApplied?: number;
+  paymentMode?: string;
   pdfUrl?: string;
   status: BillStatus;
   createdAt: string;
 }
 
-// CashMemo
+// CashMemo — customer advance token (not an invoice payment)
 export interface CashMemo {
   _id: string;
   tenantId: string;
   memoNo: string;
-  billId: string;
+  billId?: string;
   customerId: string;
   amountPaid: number;
   paymentMode: string;
@@ -187,7 +190,7 @@ export interface BillWithPayments extends Bill {
 }
 
 export interface CashMemoWithRefs extends Omit<CashMemo, 'billId' | 'customerId'> {
-  billId: { _id: string; billNo: string; grandTotal: number } | string;
+  billId?: { _id: string; billNo: string; grandTotal: number } | string;
   customerId?: Customer | string;
 }
 
@@ -283,12 +286,12 @@ export interface DashboardOverview {
   metrics: {
     revenue: number;
     revenueTrend: DashboardTrend;
-    orders: number;
-    ordersTrend: DashboardTrend;
-    customers: number;
-    customersTrend: DashboardTrend;
-    netProfit: number;
-    profitTrend: DashboardTrend;
+    totalDue: number;
+    totalDueTrend: DashboardTrend;
+    totalExpenses: number;
+    totalExpensesTrend: DashboardTrend;
+    netRevenue: number;
+    netRevenueTrend: DashboardTrend;
   };
   awaitingBills: number;
   waitingCustomers: number;

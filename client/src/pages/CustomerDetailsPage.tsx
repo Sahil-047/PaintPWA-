@@ -39,7 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { accountsApi, cashmemoApi } from '@/api';
+import { accountsApi, billingApi, cashmemoApi } from '@/api';
 import type { BillWithPayments, CustomerDetail, ReturnItem } from '@paint-saas/shared-types';
 import { ROUTES } from '@/config/config';
 import { cn } from '@/lib/utils';
@@ -212,7 +212,8 @@ function paymentModeLabel(mode: string) {
   return `Paid in ${mode || 'other'}`;
 }
 
-function memoBillId(memo: { billId: { _id: string } | string }): string {
+function memoBillId(memo: { billId?: { _id: string } | string }): string {
+  if (!memo.billId) return '';
   return typeof memo.billId === 'string' ? memo.billId : memo.billId._id;
 }
 
@@ -333,17 +334,15 @@ export default function CustomerDetailsPage() {
 
     setPaying(true);
     try {
-      const memo = await cashmemoApi.create({
-        billId: payBill._id,
-        customerId,
+      await billingApi.recordPayment(payBill._id, {
         amountPaid: amount,
         paymentMode: payMode,
       });
-      toast.success('Payment updated — give the challan to the customer');
+      toast.success('Payment updated — bill PDF refreshed');
       setPayOpen(false);
       await reloadDetail();
       try {
-        await cashmemoApi.openPdf(memo._id);
+        await billingApi.openPdf(payBill._id, payBill.billNo);
       } catch {
         /* non-blocking */
       }
@@ -402,6 +401,7 @@ export default function CustomerDetailsPage() {
     const memosByBill = new Map<string, typeof memos>();
     for (const memo of memos) {
       const id = memoBillId(memo);
+      if (!id) continue;
       if (!memosByBill.has(id)) memosByBill.set(id, []);
       memosByBill.get(id)!.push(memo);
     }
@@ -928,7 +928,7 @@ export default function CustomerDetailsPage() {
             <DialogTitle>Record payment</DialogTitle>
             <DialogDescription>
               {payBill
-                ? `Create a cash memo challan for ${invoiceLabel(payBill.billNo)}. Give the PDF to the customer as proof.`
+                ? `Record a follow-up payment for ${invoiceLabel(payBill.billNo)}. The invoice PDF will show Total, Received, and Balance due.`
                 : 'Record a follow-up payment against an unpaid invoice.'}
             </DialogDescription>
           </DialogHeader>

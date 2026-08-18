@@ -9,7 +9,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
     const tenantId = getTenantId(req);
     const input = createCashMemoSchema.parse(req.body);
     const memo = await cashmemoService.createCashMemo(tenantId, input);
-    sendCreated(res, memo, 'Payment recorded');
+    sendCreated(res, memo, 'Cash memo recorded');
   } catch (err) {
     next(err);
   }

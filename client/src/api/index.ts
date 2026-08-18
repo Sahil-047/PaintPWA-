@@ -225,6 +225,13 @@ export const billingApi = {
     >('/bills', data);
     return unwrap(res);
   },
+  recordPayment: async (
+    id: string,
+    data: { amountPaid: number; paymentMode?: string }
+  ) => {
+    const res = await axiosInstance.post<ApiResponse<Bill>>(`/bills/${id}/payment`, data);
+    return unwrap(res);
+  },
   get: (id: string) => axiosInstance.get(`/bills/${id}`),
   openPdf: async (id: string, fileName?: string) => {
     const res = await axiosInstance.get(`/bills/${id}/pdf`, { responseType: 'blob' });
@@ -248,7 +255,6 @@ export const cashmemoApi = {
     return unwrap(res);
   },
   create: async (data: {
-    billId: string;
     customerId: string;
     amountPaid: number;
     paymentMode?: string;

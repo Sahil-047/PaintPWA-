@@ -21,23 +21,20 @@ interface PdfBillData {
   orderRef?: string;
   soldBy?: string;
   delivery?: string;
+  amountPaid?: number;
+  creditApplied?: number;
+  received?: number;
+  balanceDue?: number;
 }
 
 interface PdfCashMemoData {
   memoNo: string;
   firmName?: string;
-  billNo: string;
   customerName: string;
   amountPaid: number;
   paymentMode: string;
   chequeNo?: string;
   date: string;
-  /** Invoice grand total (for challan proof). */
-  billTotal?: number;
-  /** Sum of all payments on this bill after this memo. */
-  totalPaidOnBill?: number;
-  /** Remaining balance after this memo. */
-  balanceDue?: number;
 }
 
 const styles = StyleSheet.create({
@@ -128,10 +125,14 @@ function numberToWordsIndian(n: number): string {
 export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
   const brand = data.firmName ?? data.billedByName ?? 'Shop';
   const status = statusLabel(data.status);
+  const received = data.received ?? ((data.amountPaid ?? 0) + (data.creditApplied ?? 0));
+  const balanceDue =
+    data.balanceDue ?? Math.max(0, Number((data.grandTotal - received).toFixed(2)));
+  const showPaymentBreakdown = received > 0.001 || (data.status !== 'due' && data.status !== undefined);
 
   // Page height tracks content so the PDF doesn't leave a large blank bottom.
   // More line items grow the page; overflow still wraps safely.
-  const baseHeight = 390;
+  const baseHeight = showPaymentBreakdown ? 430 : 390;
   const perItem = 26;
   const INVOICE_PAGE = {
     width: 480,
@@ -273,6 +274,15 @@ export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
       fontWeight: 600,
     },
     totalsFinalAmount: { fontSize: 12, fontWeight: 700, color: '#111111' },
+    payRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      fontSize: 8.5,
+      paddingVertical: 2,
+      marginTop: 3,
+    },
+    payReceived: { color: '#16a34a', fontWeight: 700 },
+    payDue: { color: '#b45309', fontWeight: 700 },
     footer: {
       marginTop: 12,
       paddingTop: 8,
@@ -466,7 +476,23 @@ export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
               { style: billStyles.totalsFinalAmount },
               formatCurrency(data.grandTotal)
             )
-          )
+          ),
+          showPaymentBreakdown
+            ? React.createElement(
+                View,
+                { style: billStyles.payRow },
+                React.createElement(Text, { style: billStyles.payReceived }, 'Received'),
+                React.createElement(Text, { style: billStyles.payReceived }, formatCurrency(received))
+              )
+            : null,
+          showPaymentBreakdown
+            ? React.createElement(
+                View,
+                { style: billStyles.payRow },
+                React.createElement(Text, { style: billStyles.payDue }, 'Balance due'),
+                React.createElement(Text, { style: billStyles.payDue }, formatCurrency(balanceDue))
+              )
+            : null
         )
       ),
 
@@ -499,14 +525,6 @@ export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
 export async function generateCashMemoPdf(data: PdfCashMemoData): Promise<Buffer> {
   const amountWords = `${numberToWordsIndian(data.amountPaid)} only`;
   const isCheque = data.paymentMode.toLowerCase().includes('cheque');
-  const billTotal = data.billTotal ?? 0;
-  const totalPaid = data.totalPaidOnBill ?? data.amountPaid;
-  const balanceDue =
-    data.balanceDue ?? Math.max(0, billTotal > 0 ? billTotal - totalPaid : 0);
-  const settled = balanceDue <= 0.009;
-  const paymentNote = settled
-    ? 'in full settlement of the invoice. This challan is proof of payment.'
-    : 'in part payment of the invoice. This challan is proof of amount received.';
   const modeLabel =
     (data.paymentMode || 'cash').charAt(0).toUpperCase() +
     (data.paymentMode || 'cash').slice(1).toLowerCase();
@@ -690,19 +708,19 @@ export async function generateCashMemoPdf(data: PdfCashMemoData): Promise<Buffer
         React.createElement(
           View,
           null,
-          React.createElement(Text, { style: s.title }, 'Payment Challan'),
+          React.createElement(Text, { style: s.title }, 'Cash Memo'),
           React.createElement(
             Text,
             { style: s.subtitle },
-            'Cash Memo · Customer payment receipt'
+            'Advance receipt · Token for future purchases'
           )
         ),
         React.createElement(
           View,
           { style: { alignItems: 'flex-end' } },
           React.createElement(Text, { style: s.firm }, firm),
-          React.createElement(Text, { style: s.invoiceRef }, `Invoice ${data.billNo}`),
-          React.createElement(Text, { style: s.status }, settled ? 'Settled' : 'Partial')
+          React.createElement(Text, { style: s.invoiceRef }, 'Customer advance token'),
+          React.createElement(Text, { style: s.status }, 'Advance')
         )
       ),
 
@@ -743,57 +761,41 @@ export async function generateCashMemoPdf(data: PdfCashMemoData): Promise<Buffer
               ? `${data.chequeNo ?? '—'}   ${formatCurrency(data.amountPaid)}`
               : `${modeLabel}   ${formatCurrency(data.amountPaid)}`
           ),
-          fillLine('Dated', formatDate(data.date), paymentNote),
+          fillLine('Dated', formatDate(data.date), 'as a token of amount received'),
           React.createElement(
             Text,
             { style: s.tip },
-            settled
-              ? 'This challan is your proof of payment against the invoice above.'
-              : 'Present this challan when paying the remaining balance. Each payment creates a new cash memo against the same invoice.'
+            'This cash memo is proof that the customer has deposited the amount above for future buying. Present it when billing against this credit.'
           )
         ),
-        billTotal > 0
-          ? React.createElement(
-              View,
-              { style: s.settleBox },
-              React.createElement(Text, { style: s.settleTitle }, 'Invoice settlement'),
-              React.createElement(
-                View,
-                { style: s.settleRow },
-                React.createElement(Text, { style: s.settleLabel }, 'Invoice total'),
-                React.createElement(Text, { style: s.settleValue }, formatCurrency(billTotal))
-              ),
-              React.createElement(
-                View,
-                { style: s.settleRow },
-                React.createElement(Text, { style: s.settleLabel }, 'Paid on this challan'),
-                React.createElement(Text, { style: s.settleValue }, formatCurrency(data.amountPaid))
-              ),
-              React.createElement(
-                View,
-                { style: s.settleRow },
-                React.createElement(Text, { style: s.settleLabel }, 'Total paid so far'),
-                React.createElement(Text, { style: s.settleValue }, formatCurrency(totalPaid))
-              ),
-              React.createElement(
-                View,
+        React.createElement(
+          View,
+          { style: s.settleBox },
+          React.createElement(Text, { style: s.settleTitle }, 'Amount received'),
+          React.createElement(
+            View,
+            { style: s.settleRow },
+            React.createElement(Text, { style: s.settleLabel }, 'Received'),
+            React.createElement(Text, { style: s.settleValue }, formatCurrency(data.amountPaid))
+          ),
+          React.createElement(
+            View,
+            {
+              style: [
+                s.settleRow,
                 {
-                  style: [
-                    s.settleRow,
-                    {
-                      marginTop: 4,
-                      paddingTop: 5,
-                      borderTopWidth: 1,
-                      borderTopColor: '#E4E4E4',
-                      marginBottom: 0,
-                    },
-                  ],
+                  marginTop: 4,
+                  paddingTop: 5,
+                  borderTopWidth: 1,
+                  borderTopColor: '#E4E4E4',
+                  marginBottom: 0,
                 },
-                React.createElement(Text, { style: s.settleBalance }, 'Balance due'),
-                React.createElement(Text, { style: s.settleBalance }, formatCurrency(balanceDue))
-              )
-            )
-          : null
+              ],
+            },
+            React.createElement(Text, { style: s.settleBalance }, 'Credit for future buying'),
+            React.createElement(Text, { style: s.settleBalance }, formatCurrency(data.amountPaid))
+          )
+        )
       ),
 
       React.createElement(

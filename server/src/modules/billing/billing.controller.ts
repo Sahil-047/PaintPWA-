@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { getTenantId } from '../../middlewares/tenant.middleware.js';
 import { sendCreated, sendPaginated, sendSuccess } from '../../utils/response.helper.js';
 import * as billingService from './billing.service.js';
-import { billingProductsQuerySchema, createBillSchema } from './billing.validator.js';
+import { billingProductsQuerySchema, createBillSchema, recordBillPaymentSchema } from './billing.validator.js';
 
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
@@ -37,6 +37,17 @@ export async function listProducts(req: Request, res: Response, next: NextFuncti
     const query = billingProductsQuerySchema.parse(req.query);
     const result = await billingService.listBillingProducts(getTenantId(req), query);
     sendPaginated(res, result.items, result.pagination);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function recordPayment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tenantId = getTenantId(req);
+    const input = recordBillPaymentSchema.parse(req.body);
+    const bill = await billingService.recordBillPayment(tenantId, String(req.params.id), input);
+    res.status(200).json({ success: true, message: 'Payment recorded', data: bill });
   } catch (err) {
     next(err);
   }
