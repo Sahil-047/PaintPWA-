@@ -9,8 +9,9 @@ const workSans = Work_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "paintsaas",
-  description: "paintsaas — a product of AsthetCSS.",
+  title: "paintsaas Paint Shop ERP",
+  description:
+    "Inventory, billing, accounts, cash memos, and analytics for paint retailers. Explore the interactive ERP preview and start your pilot.",
   icons: {
     icon: "/favicon.png",
     apple: "/logo.png",
@@ -23,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${workSans.variable} antialiased`}>
-      <body className={workSans.className}>{children}</body>
+    <html lang="en" className={`${workSans.variable} bg-white antialiased`}>
+      <body className={`${workSans.className} bg-white`}>{children}</body>
     </html>
   );
 }
