@@ -20,7 +20,7 @@ import { billingApi, type PaginationMeta } from '@/api';
 import type { Product } from '@paint-saas/shared-types';
 import { PAINT_SIZES, formatPackSizeLabel } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import {
   Search,
   ShoppingCart,
@@ -45,6 +45,7 @@ interface CartItem {
   price: number;
   quantity: number;
   stockQty: number;
+  colorCode: string;
 }
 
 function cartLineId(productId: string, packSize: string) {
@@ -111,6 +112,9 @@ export default function BillingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [discount, setDiscount] = useState('0');
   const [discountChecked, setDiscountChecked] = useState(false);
+  const [misc, setMisc] = useState('0');
+  const [miscChecked, setMiscChecked] = useState(false);
+  const [miscRemark, setMiscRemark] = useState('');
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
@@ -196,6 +200,7 @@ export default function BillingPage() {
           price: 0,
           quantity: 1,
           stockQty: opt.stock,
+          colorCode: '',
         },
       ]);
     }
@@ -222,18 +227,43 @@ export default function BillingPage() {
 
   function updateQty(cartItemId: string, delta: number) {
     setCart(
-      cart
-        .map((item) => {
-          if (item.cartItemId !== cartItemId) return item;
-          const qty = item.quantity + delta;
-          if (qty <= 0) return null;
-          if (qty > item.stockQty) {
-            toast.error(`Only ${item.stockQty} in stock for ${item.packSizeLabel || item.packSize}`);
-            return item;
-          }
-          return { ...item, quantity: qty };
-        })
-        .filter(Boolean) as CartItem[]
+      cart.map((item) => {
+        if (item.cartItemId !== cartItemId) return item;
+        const qty = item.quantity + delta;
+        if (qty < 1) {
+          toast.error('Quantity must be at least 1');
+          return item;
+        }
+        if (qty > item.stockQty) {
+          toast.error(`Only ${item.stockQty} in stock for ${item.packSizeLabel || item.packSize}`);
+          return item;
+        }
+        return { ...item, quantity: qty };
+      })
+    );
+  }
+
+  function setQty(cartItemId: string, value: string) {
+    if (value.trim() === '') {
+      toast.error('Quantity must be at least 1');
+      return;
+    }
+    const parsed = Number.parseInt(value, 10);
+    if (!Number.isFinite(parsed)) return;
+    if (parsed < 1) {
+      toast.error('Quantity must be at least 1');
+      return;
+    }
+
+    setCart(
+      cart.map((item) => {
+        if (item.cartItemId !== cartItemId) return item;
+        if (parsed > item.stockQty) {
+          toast.error(`Only ${item.stockQty} in stock for ${item.packSizeLabel || item.packSize}`);
+          return { ...item, quantity: item.stockQty };
+        }
+        return { ...item, quantity: parsed };
+      })
     );
   }
 
@@ -244,6 +274,14 @@ export default function BillingPage() {
         item.cartItemId === cartItemId
           ? { ...item, price: Number.isFinite(price) ? Math.max(0, price) : item.price }
           : item
+      )
+    );
+  }
+
+  function setColorCode(cartItemId: string, value: string) {
+    setCart(
+      cart.map((item) =>
+        item.cartItemId === cartItemId ? { ...item, colorCode: value } : item
       )
     );
   }
@@ -277,7 +315,8 @@ export default function BillingPage() {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.quantity, 0);
   const discountNum = discountChecked ? parseFloat(discount) || 0 : 0;
-  const grandTotal = Math.max(0, subtotal - discountNum);
+  const miscNum = miscChecked ? parseFloat(misc) || 0 : 0;
+  const grandTotal = Math.max(0, subtotal - discountNum + miscNum);
 
   function openCheckout() {
     if (cart.length === 0) {
@@ -286,6 +325,14 @@ export default function BillingPage() {
     }
     if (cart.some((i) => !i.price || i.price <= 0)) {
       toast.error('Set a unit price for every cart item');
+      return;
+    }
+    if (cart.some((i) => !i.quantity || i.quantity < 1)) {
+      toast.error('Quantity must be at least 1 for every cart item');
+      return;
+    }
+    if (miscNum > 0 && !miscRemark.trim()) {
+      toast.error('Add a remark for the miscellaneous charge');
       return;
     }
     setCheckoutOpen(true);
@@ -300,6 +347,14 @@ export default function BillingPage() {
       toast.error('Set a unit price for every cart item');
       return;
     }
+    if (cart.some((i) => !i.quantity || i.quantity < 1)) {
+      toast.error('Quantity must be at least 1 for every cart item');
+      return;
+    }
+    if (miscNum > 0 && !miscRemark.trim()) {
+      toast.error('Add a remark for the miscellaneous charge');
+      return;
+    }
     setSubmitting(true);
     try {
       const result = await billingApi.create({
@@ -309,26 +364,45 @@ export default function BillingPage() {
           qty: i.quantity,
           rate: i.price,
           size: isPaintPackSize(i.packSize) ? i.packSize : undefined,
+          colorCode: i.colorCode.trim() || undefined,
         })),
         discount: discountNum,
+        miscAmount: miscNum,
+        miscRemark: miscNum > 0 ? miscRemark.trim() : undefined,
         amountPaid: payload.amountPaid,
         paymentMode: payload.paymentMode,
       });
       const billTotal = Math.max(
         0,
-        cart.reduce((s, i) => s + i.price * i.quantity, 0) - discountNum
+        cart.reduce((s, i) => s + i.price * i.quantity, 0) - discountNum + miscNum
       );
-      if (payload.amountPaid <= 0) {
-        toast.success('Invoice created — full amount due');
-      } else if (payload.amountPaid < billTotal) {
-        toast.success('Invoice created — partial payment shown on the bill PDF');
+            const creditUsed = result.bill?.creditApplied ?? result.creditApplied ?? 0;
+      const cashPaid =
+        payload.paymentMode === 'store_credit' ? 0 : payload.amountPaid;
+      const received = Number((cashPaid + creditUsed).toFixed(2));
+      if (creditUsed > 0.001 && received >= billTotal - 0.001) {
+        toast.success(
+          `Invoice created - paid in full with ${formatCurrency(creditUsed)} store credit`
+        );
+      } else if (creditUsed > 0.001) {
+        toast.success(
+          `Invoice created - ${formatCurrency(creditUsed)} store credit applied`
+        );
+      } else if (cashPaid <= 0) {
+        toast.success('Invoice created - full amount due');
+      } else if (cashPaid < billTotal) {
+        toast.success('Invoice created - partial payment shown on the bill PDF');
       } else {
-        toast.success('Invoice created — paid in full');
+        toast.success('Invoice created - paid in full');
+      }
       }
       setCart([]);
       setCheckoutOpen(false);
       setDiscount('0');
       setDiscountChecked(false);
+      setMisc('0');
+      setMiscChecked(false);
+      setMiscRemark('');
       await loadProducts(1, false);
 
       const billId = result.bill?._id;
@@ -340,8 +414,14 @@ export default function BillingPage() {
         }
       }
     } catch (err: unknown) {
+      const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })
+        ?.response?.data;
+      const fieldErrors = data?.errors
+        ? Object.values(data.errors).flat().filter(Boolean)
+        : [];
       const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        fieldErrors[0] ||
+        data?.message ||
         'Failed to create bill';
       toast.error(msg);
     } finally {
@@ -669,6 +749,18 @@ export default function BillingPage() {
                               className="h-8 w-[100px] text-[13px] font-semibold border-[#e2e8f0] rounded-lg"
                             />
                           </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            <Label className="text-[11px] text-[#64748b] shrink-0">Color</Label>
+                            <Input
+                              type="text"
+                              value={item.colorCode}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                setColorCode(item.cartItemId, e.target.value)
+                              }
+                              placeholder=""
+                              className="h-8 w-[100px] text-[13px] font-semibold border-[#e2e8f0] rounded-lg uppercase"
+                            />
+                          </div>
                           </div>
                         </div>
                         <button
@@ -690,9 +782,19 @@ export default function BillingPage() {
                           >
                             <Minus className="w-3.5 h-3.5" strokeWidth={2.5} />
                           </button>
-                          <span className="w-9 text-center text-[14px] font-bold text-[#0f172a] border-x border-[#e2e8f0] h-8 flex items-center justify-center bg-white">
-                            {item.quantity}
-                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={item.stockQty}
+                            step={1}
+                            value={item.quantity}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                              setQty(item.cartItemId, e.target.value)
+                            }
+                            onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
+                            className="w-12 h-8 border-x border-[#e2e8f0] bg-white text-center text-[14px] font-bold text-[#0f172a] tabular-nums outline-none focus:bg-[#eff6ff]"
+                            aria-label={`Quantity for ${item.name}`}
+                          />
                           <button
                             type="button"
                             onClick={() => updateQty(item.cartItemId, 1)}
@@ -736,7 +838,41 @@ export default function BillingPage() {
                     value={discount}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDiscount(e.target.value)}
                     className="h-9 text-sm border-[#e2e8f0]"
+                    placeholder="Discount amount"
                   />
+                )}
+                <label className="flex items-center justify-between cursor-pointer">
+                  <span className="flex items-center gap-2.5 text-[#64748b]">
+                    <input
+                      type="checkbox"
+                      checked={miscChecked}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMiscChecked(e.target.checked)}
+                      className="accent-[#2563eb]"
+                    />
+                    Miscellaneous
+                  </span>
+                  {miscChecked && miscNum > 0 && (
+                    <span className="font-semibold text-[#ea580c]">+ ₹ {miscNum.toFixed(2)}</span>
+                  )}
+                </label>
+                {miscChecked && (
+                  <div className="space-y-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={misc}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMisc(e.target.value)}
+                      className="h-9 text-sm border-[#e2e8f0]"
+                      placeholder="Extra amount"
+                    />
+                    <Input
+                      type="text"
+                      value={miscRemark}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMiscRemark(e.target.value)}
+                      className="h-9 text-sm border-[#e2e8f0]"
+                      placeholder="Remark (required)"
+                    />
+                  </div>
                 )}
                 <div className="flex justify-between text-[17px] font-bold text-[#0f172a] pt-3 border-t border-[#f1f5f9]">
                   <span>Total</span>
@@ -775,6 +911,13 @@ export default function BillingPage() {
         discountAmount={discount}
         onDiscountChange={setDiscountChecked}
         onDiscountAmountChange={setDiscount}
+        misc={miscNum}
+        miscEnabled={miscChecked}
+        miscAmount={misc}
+        miscRemark={miscRemark}
+        onMiscChange={setMiscChecked}
+        onMiscAmountChange={setMisc}
+        onMiscRemarkChange={setMiscRemark}
         onSubmit={handleCheckout}
         submitting={submitting}
       />

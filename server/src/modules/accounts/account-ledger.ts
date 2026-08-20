@@ -1,14 +1,18 @@
 import type { IAccount } from './accounts.model.js';
 
 /**
- * Derives dueBalance from billed vs paid, applying store credit to open dues.
- * Does not rewrite totalPaid (cash collected stays truthful).
- * Excess paid vs billed is moved into creditBalance only when `absorbOverpay` is true
- * (transaction sites that reduce billed / record overpay); routine syncs must not
- * re-absorb or credit would double-count.
+ * Derives dueBalance from billed vs paid.
+ * Store credit is applied only when `applyCredit` is true (e.g. checkout chose
+ * “Store credit”); otherwise credit stays available until explicitly used.
+ * When credit is applied it is added to totalPaid so settlement sticks on later syncs.
+ * Excess paid vs billed moves into creditBalance only when `absorbOverpay` is true.
  */
-export function syncAccountLedger(account: IAccount, options?: { absorbOverpay?: boolean }): void {
+export function syncAccountLedger(
+  account: IAccount,
+  options?: { absorbOverpay?: boolean; applyCredit?: boolean }
+): void {
   const absorbOverpay = options?.absorbOverpay ?? false;
+  const applyCredit = options?.applyCredit ?? false;
   let due = Number((account.totalBilled - account.totalPaid).toFixed(2));
 
   if (due < 0) {
@@ -18,9 +22,10 @@ export function syncAccountLedger(account: IAccount, options?: { absorbOverpay?:
     }
     account.dueBalance = 0;
   } else {
-    if (account.creditBalance > 0 && due > 0) {
+    if (applyCredit && account.creditBalance > 0 && due > 0) {
       const applied = Math.min(account.creditBalance, due);
       account.creditBalance = Number((account.creditBalance - applied).toFixed(2));
+      account.totalPaid = Number((account.totalPaid + applied).toFixed(2));
       due = Number((due - applied).toFixed(2));
     }
     account.dueBalance = due;

@@ -13,7 +13,11 @@ export async function create(req: Request, res: Response, next: NextFunction) {
     res.status(201).json({
       success: true,
       message: 'Bill created successfully',
-      data: { bill: result.bill, cashMemo: result.cashMemo },
+      data: {
+        bill: result.bill,
+        cashMemo: result.cashMemo,
+        creditApplied: result.creditApplied,
+      },
     });
 
     // PDF available via separate download endpoint in future

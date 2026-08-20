@@ -291,6 +291,10 @@ export async function deductStock(
   qty: number,
   size?: string
 ) {
+  if (!Number.isFinite(qty) || qty < 1) {
+    throw new AppError('Quantity must be at least 1', 400);
+  }
+
   const product = await ProductModel.findOne({ _id: productId, tenantId, isActive: true });
   if (!product) throw new AppError(`Product not found: ${productId}`, 404);
 

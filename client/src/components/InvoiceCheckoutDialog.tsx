@@ -38,6 +38,7 @@ export interface InvoiceCartLine {
   productImage?: string;
   price: number;
   quantity: number;
+  colorCode?: string;
 }
 
 interface InvoiceCheckoutDialogProps {
@@ -50,6 +51,13 @@ interface InvoiceCheckoutDialogProps {
   onDiscountChange: (enabled: boolean) => void;
   onDiscountAmountChange: (amount: string) => void;
   discountAmount: string;
+  misc: number;
+  miscEnabled: boolean;
+  miscAmount: string;
+  miscRemark: string;
+  onMiscChange: (enabled: boolean) => void;
+  onMiscAmountChange: (amount: string) => void;
+  onMiscRemarkChange: (remark: string) => void;
   onSubmit: (payload: {
     customer: { name: string; phone?: string; address?: string };
     amountPaid: number;
@@ -99,6 +107,13 @@ export default function InvoiceCheckoutDialog({
   onDiscountChange,
   onDiscountAmountChange,
   discountAmount,
+  misc,
+  miscEnabled,
+  miscAmount,
+  miscRemark,
+  onMiscChange,
+  onMiscAmountChange,
+  onMiscRemarkChange,
   onSubmit,
   submitting = false,
 }: InvoiceCheckoutDialogProps) {
@@ -114,6 +129,7 @@ export default function InvoiceCheckoutDialog({
   const [dueDate, setDueDate] = useState('');
   const [paymentMode, setPaymentMode] = useState('upi');
   const [amountPaidInput, setAmountPaidInput] = useState('');
+  const [availableCredit, setAvailableCredit] = useState(0);
   const [invoiceNo] = useState(() => `INV-${Date.now().toString().slice(-4)}`);
 
   useEffect(() => {
@@ -135,20 +151,55 @@ export default function InvoiceCheckoutDialog({
       setDueDate('');
       setPaymentMode('upi');
       setAmountPaidInput('');
+      setAvailableCredit(0);
     }
   }, [open]);
 
-  /** Must match server Bill.grandTotal (subtotal − discount). */
-  const billTotal = Math.max(0, subtotal - discount);
-  const amountPaid = Math.min(billTotal, Math.max(0, parseFloat(amountPaidInput) || 0));
-  const balanceDue = Math.max(0, billTotal - amountPaid);
-  const isPartialPayment = amountPaid > 0 && amountPaid < billTotal;
+  /** Must match server Bill.grandTotal (subtotal − discount + misc). */
+  const billTotal = Math.max(0, subtotal - discount + misc);
+  const payWithStoreCredit = paymentMode === 'store_credit';
+  const enteredAmount = Math.max(0, parseFloat(amountPaidInput) || 0);
+  const creditApplied = payWithStoreCredit
+    ? Math.min(availableCredit, billTotal, enteredAmount)
+    : 0;
+  const amountPaid = payWithStoreCredit ? 0 : Math.min(billTotal, enteredAmount);
+  const totalReceived = Number((creditApplied + amountPaid).toFixed(2));
+  const balanceDue = Math.max(0, Number((billTotal - totalReceived).toFixed(2)));
+  const isPartialPayment = totalReceived > 0.001 && balanceDue > 0.001;
+  const isPaidInFull = billTotal > 0 && balanceDue <= 0.001;
   const fullName = `${firstName} ${lastName}`.trim();
+  const maxPayable = payWithStoreCredit
+    ? Math.min(availableCredit, billTotal)
+    : billTotal;
+
+  async function loadCreditForCustomer(customerId: string | null) {
+    if (!customerId || customerId === 'new') {
+      setAvailableCredit(0);
+      return;
+    }
+    try {
+      const detail = await accountsApi.getCustomer(customerId);
+      setAvailableCredit(Math.max(0, detail.account?.creditBalance ?? 0));
+    } catch {
+      setAvailableCredit(0);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
-    setAmountPaidInput(billTotal > 0 ? billTotal.toFixed(2) : '');
-  }, [open, billTotal]);
+    if (paymentMode === 'store_credit' && availableCredit <= 0.001) {
+      setPaymentMode('upi');
+      return;
+    }
+    const defaultAmt = payWithStoreCredit
+      ? Math.min(availableCredit, billTotal)
+      : billTotal;
+    setAmountPaidInput(defaultAmt > 0 ? defaultAmt.toFixed(2) : '0');
+  }, [open, billTotal, paymentMode, availableCredit, payWithStoreCredit]);
+
+  function handlePaymentModeChange(value: string) {
+    setPaymentMode(value);
+  }
 
   const billedBy = {
     name: tenant?.name?.trim() || 'Shop',
@@ -164,6 +215,7 @@ export default function InvoiceCheckoutDialog({
     setLastName(parts.slice(1).join(' '));
     setPhone(c.phone ?? '');
     setAddress(c.address ?? '');
+    void loadCreditForCustomer(c._id);
   }
 
   function handleCustomerSelect(value: string) {
@@ -173,10 +225,30 @@ export default function InvoiceCheckoutDialog({
       setLastName('');
       setAddress('');
       setPhone('');
+      setAvailableCredit(0);
       return;
     }
     const customer = customers.find((c) => c._id === value);
     if (customer) applyCustomer(customer);
+  }
+
+  function handlePhoneChange(value: string) {
+    setPhone(value);
+    const digits = value.replace(/\D/g, '');
+    if (digits.length < 8) {
+      if (selectedCustomerId === 'new') setAvailableCredit(0);
+      return;
+    }
+    const match = customers.find((c) => (c.phone ?? '').replace(/\D/g, '') === digits);
+    if (match) {
+      if (selectedCustomerId !== match._id) {
+        applyCustomer(match);
+      } else {
+        void loadCreditForCustomer(match._id);
+      }
+    } else if (selectedCustomerId === 'new') {
+      setAvailableCredit(0);
+    }
   }
 
   async function handleGenerate() {
@@ -184,7 +256,24 @@ export default function InvoiceCheckoutDialog({
       toast.error('Enter customer name');
       return;
     }
-    if (amountPaid > billTotal) {
+    if (miscEnabled && misc > 0 && !miscRemark.trim()) {
+      toast.error('Add a remark for the miscellaneous charge');
+      return;
+    }
+    if (payWithStoreCredit) {
+      if (availableCredit <= 0.001) {
+        toast.error('This customer has no store credit');
+        return;
+      }
+      if (creditApplied <= 0) {
+        toast.error('Enter how much store credit to apply');
+        return;
+      }
+      if (creditApplied > availableCredit + 0.001) {
+        toast.error(`Store credit cannot exceed ₹${availableCredit.toFixed(2)}`);
+        return;
+      }
+    } else if (amountPaid > billTotal + 0.001) {
       toast.error('Amount received cannot exceed invoice total');
       return;
     }
@@ -194,7 +283,8 @@ export default function InvoiceCheckoutDialog({
         phone: phone || undefined,
         address: address || undefined,
       },
-      amountPaid,
+      // Backend treats amountPaid as credit to apply when paymentMode is store_credit.
+      amountPaid: payWithStoreCredit ? creditApplied : amountPaid,
       paymentMode,
     });
   }
@@ -372,7 +462,7 @@ export default function InvoiceCheckoutDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-[13px] font-medium text-[#334155]">Payment Method</Label>
-                  <Select value={paymentMode} onValueChange={setPaymentMode}>
+                  <Select value={paymentMode} onValueChange={handlePaymentModeChange}>
                     <SelectTrigger className={cn(inputClass, 'mt-1.5 w-full')}>
                       <SelectValue />
                     </SelectTrigger>
@@ -381,6 +471,11 @@ export default function InvoiceCheckoutDialog({
                       <SelectItem value="cash">Cash</SelectItem>
                       <SelectItem value="card">Card</SelectItem>
                       <SelectItem value="bank">Bank transfer</SelectItem>
+                      {availableCredit > 0.001 && (
+                        <SelectItem value="store_credit">
+                          Store credit ({formatCurrency(availableCredit)})
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -388,7 +483,7 @@ export default function InvoiceCheckoutDialog({
                   <Label className="text-[13px] font-medium text-[#334155]">Phone</Label>
                   <Input
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => handlePhoneChange(e.target.value)}
                     placeholder="Optional"
                     className={cn(inputClass, 'mt-1.5')}
                   />
@@ -398,44 +493,68 @@ export default function InvoiceCheckoutDialog({
               <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 space-y-3">
                 <div>
                   <Label className="text-[13px] font-medium text-[#334155]">
-                    Amount received now
+                    {payWithStoreCredit ? 'Credit to apply' : 'Amount received now'}
                   </Label>
                   <Input
                     type="number"
                     min={0}
-                    max={billTotal}
+                    max={maxPayable}
                     step="0.01"
                     value={amountPaidInput}
                     onChange={(e) => setAmountPaidInput(e.target.value)}
                     className={cn(inputClass, 'mt-1.5')}
                   />
                   <p className="mt-1.5 text-[11px] text-[#64748b]">
-                    Shown on the invoice as Received vs Balance due. No cash memo is created from
-                    billing. Leave 0 if nothing is paid today.
+                    {payWithStoreCredit
+                      ? `Using store credit (available ${formatCurrency(availableCredit)}). Leave less than total to keep a balance due.`
+                      : 'Shown on the invoice as Received vs Balance due. Leave 0 if nothing is paid today.'}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[12px]">
-                  <span className="text-[#64748b]">
-                    Balance due:{' '}
-                    <span className="font-semibold text-[#dc2626] tabular-nums">
-                      {formatCurrency(balanceDue)}
-                    </span>
-                  </span>
-                  {amountPaid <= 0 && billTotal > 0 && (
-                    <span className="inline-flex rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-semibold text-[#dc2626] border border-[#fecaca]">
-                      Due
-                    </span>
+                <div className="space-y-1.5 text-[12px]">
+                  {creditApplied > 0.001 && (
+                    <div className="flex justify-between text-[#4338ca]">
+                      <span>Store credit</span>
+                      <span className="font-semibold tabular-nums">
+                        − {formatCurrency(creditApplied)}
+                      </span>
+                    </div>
                   )}
-                  {isPartialPayment && (
-                    <span className="inline-flex rounded-full bg-[#fef9c3] px-2.5 py-0.5 text-[11px] font-semibold text-[#a16207] border border-[#fde047]">
-                      Partial
-                    </span>
+                  {amountPaid > 0.001 && (
+                    <div className="flex justify-between text-[#16a34a]">
+                      <span>Cash / UPI</span>
+                      <span className="font-semibold tabular-nums">
+                        {formatCurrency(amountPaid)}
+                      </span>
+                    </div>
                   )}
-                  {amountPaid >= billTotal && billTotal > 0 && (
-                    <span className="inline-flex rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-semibold text-[#15803d] border border-[#bbf7d0]">
-                      Paid
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[#64748b]">
+                      Balance due:{' '}
+                      <span
+                        className={cn(
+                          'font-semibold tabular-nums',
+                          balanceDue > 0.001 ? 'text-[#dc2626]' : 'text-[#15803d]'
+                        )}
+                      >
+                        {formatCurrency(balanceDue)}
+                      </span>
                     </span>
-                  )}
+                    {totalReceived <= 0.001 && billTotal > 0 && (
+                      <span className="inline-flex rounded-full bg-[#fee2e2] px-2.5 py-0.5 text-[11px] font-semibold text-[#dc2626] border border-[#fecaca]">
+                        Due
+                      </span>
+                    )}
+                    {isPartialPayment && (
+                      <span className="inline-flex rounded-full bg-[#fef9c3] px-2.5 py-0.5 text-[11px] font-semibold text-[#a16207] border border-[#fde047]">
+                        Partial
+                      </span>
+                    )}
+                    {isPaidInFull && (
+                      <span className="inline-flex rounded-full bg-[#dcfce7] px-2.5 py-0.5 text-[11px] font-semibold text-[#15803d] border border-[#bbf7d0]">
+                        Paid
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -444,7 +563,7 @@ export default function InvoiceCheckoutDialog({
                 <div className="rounded-xl border border-[#e2e8f0] overflow-hidden">
                   <div className="grid grid-cols-[minmax(0,1.5fr)_64px_48px_72px] gap-2 bg-[#f8fafc] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#94a3b8]">
                     <span>Item</span>
-                    <span>Base</span>
+                    <span>Color</span>
                     <span>Qty</span>
                     <span>Unit</span>
                   </div>
@@ -480,8 +599,11 @@ export default function InvoiceCheckoutDialog({
                               </p>
                             </div>
                           </div>
-                          <span className="truncate text-[11px] font-medium text-[#334155]" title={item.base}>
-                            {item.base || '—'}
+                          <span
+                            className="truncate text-[11px] font-medium text-[#334155]"
+                            title={item.colorCode || item.base}
+                          >
+                            {item.colorCode?.trim() || '—'}
                           </span>
                           <span className="text-[12px] font-semibold text-[#0f172a] tabular-nums">
                             {item.quantity}
@@ -500,25 +622,59 @@ export default function InvoiceCheckoutDialog({
 
               <div>
                 <p className="mb-2 text-[15px] font-semibold text-[#0f172a]">Additional Options</p>
-                <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-[#334155]">
-                  <input
-                    type="checkbox"
-                    checked={discountEnabled}
-                    onChange={(e) => onDiscountChange(e.target.checked)}
-                    className="h-4 w-4 accent-[#2563eb]"
-                  />
-                  Add Discount
-                </label>
-                {discountEnabled && (
-                  <Input
-                    type="number"
-                    min={0}
-                    value={discountAmount}
-                    onChange={(e) => onDiscountAmountChange(e.target.value)}
-                    placeholder="Discount amount (₹)"
-                    className={cn(inputClass, 'mt-2 max-w-[200px]')}
-                  />
-                )}
+                <div className="space-y-3">
+                  <div>
+                    <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-[#334155]">
+                      <input
+                        type="checkbox"
+                        checked={discountEnabled}
+                        onChange={(e) => onDiscountChange(e.target.checked)}
+                        className="h-4 w-4 accent-[#2563eb]"
+                      />
+                      Add Discount
+                    </label>
+                    {discountEnabled && (
+                      <Input
+                        type="number"
+                        min={0}
+                        value={discountAmount}
+                        onChange={(e) => onDiscountAmountChange(e.target.value)}
+                        placeholder="Discount amount (₹)"
+                        className={cn(inputClass, 'mt-2 max-w-[200px]')}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-[#334155]">
+                      <input
+                        type="checkbox"
+                        checked={miscEnabled}
+                        onChange={(e) => onMiscChange(e.target.checked)}
+                        className="h-4 w-4 accent-[#2563eb]"
+                      />
+                      Add Miscellaneous
+                    </label>
+                    {miscEnabled && (
+                      <div className="mt-2 space-y-2 max-w-[320px]">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={miscAmount}
+                          onChange={(e) => onMiscAmountChange(e.target.value)}
+                          placeholder="Extra amount (₹)"
+                          className={inputClass}
+                        />
+                        <Input
+                          type="text"
+                          value={miscRemark}
+                          onChange={(e) => onMiscRemarkChange(e.target.value)}
+                          placeholder="Remark (why this charge)"
+                          className={inputClass}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -610,7 +766,14 @@ export default function InvoiceCheckoutDialog({
                     <p className="mt-0.5 text-[9px] text-[#64748b] leading-snug">{billedBy.address}</p>
                   )}
                   <p className="mt-0.5 text-[9px] capitalize text-[#64748b]">
-                    Payment · {paymentMode}
+                    Payment ·{' '}
+                    {paymentMode === 'store_credit'
+                      ? 'Store credit'
+                      : paymentMode === 'bank'
+                        ? 'Bank transfer'
+                        : paymentMode.toUpperCase() === paymentMode
+                          ? paymentMode
+                          : paymentMode.charAt(0).toUpperCase() + paymentMode.slice(1)}
                   </p>
                 </div>
 
@@ -672,9 +835,11 @@ export default function InvoiceCheckoutDialog({
                       >
                         <div className="min-w-0">
                           <p className="font-medium leading-snug">{item.name}</p>
-                          {item.base && (
+                          {item.colorCode?.trim() ? (
+                            <p className="text-[8px] text-[#94a3b8]">Color {item.colorCode.trim()}</p>
+                          ) : item.base ? (
                             <p className="text-[8px] text-[#94a3b8]">Base {item.base}</p>
-                          )}
+                          ) : null}
                         </div>
                         <p className="text-center tabular-nums">{item.quantity}</p>
                         <p className="text-center text-[#64748b]">
@@ -702,27 +867,49 @@ export default function InvoiceCheckoutDialog({
                       <span className="tabular-nums text-[#0f172a]">− {formatCurrency(discount)}</span>
                     </div>
                   )}
+                  {miscEnabled && misc > 0 && (
+                    <div className="flex justify-between text-[#64748b]">
+                      <span className="min-w-0 pr-2">
+                        Misc{miscRemark.trim() ? ` · ${miscRemark.trim()}` : ''}
+                      </span>
+                      <span className="tabular-nums text-[#0f172a] shrink-0">+ {formatCurrency(misc)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-[#0f172a] pt-2 text-[12px] font-bold text-[#0f172a]">
                     <span>Total</span>
                     <span className="tabular-nums">{formatCurrency(billTotal)}</span>
                   </div>
-                  {amountPaid > 0 && (
-                    <>
-                      <div className="flex justify-between text-[#16a34a]">
-                        <span>Received</span>
-                        <span className="tabular-nums font-semibold">
-                          {formatCurrency(amountPaid)}
-                        </span>
-                      </div>
-                      {balanceDue > 0 && (
-                        <div className="flex justify-between text-[#dc2626]">
-                          <span>Balance due</span>
-                          <span className="tabular-nums font-semibold">
-                            {formatCurrency(balanceDue)}
-                          </span>
-                        </div>
-                      )}
-                    </>
+                  {creditApplied > 0.001 && (
+                    <div className="flex justify-between text-[#4338ca]">
+                      <span>Store credit</span>
+                      <span className="tabular-nums font-semibold">
+                        − {formatCurrency(creditApplied)}
+                      </span>
+                    </div>
+                  )}
+                  {amountPaid > 0.001 && (
+                    <div className="flex justify-between text-[#16a34a]">
+                      <span>Cash / UPI</span>
+                      <span className="tabular-nums font-semibold">
+                        {formatCurrency(amountPaid)}
+                      </span>
+                    </div>
+                  )}
+                  {totalReceived > 0.001 && (
+                    <div className="flex justify-between text-[#0f172a]">
+                      <span>Total received</span>
+                      <span className="tabular-nums font-semibold">
+                        {formatCurrency(totalReceived)}
+                      </span>
+                    </div>
+                  )}
+                  {balanceDue > 0.001 && (
+                    <div className="flex justify-between text-[#dc2626]">
+                      <span>Balance due</span>
+                      <span className="tabular-nums font-semibold">
+                        {formatCurrency(balanceDue)}
+                      </span>
+                    </div>
                   )}
                 </div>
 

@@ -6,6 +6,7 @@ export interface IBillItem {
   qty: number;
   rate: number;
   total: number;
+  colorCode?: string;
 }
 
 export interface IBill extends Document {
@@ -15,6 +16,8 @@ export interface IBill extends Document {
   items: IBillItem[];
   subtotal: number;
   discount: number;
+  miscAmount: number;
+  miscRemark?: string;
   grandTotal: number;
   amountPaid: number;
   creditApplied: number;
@@ -30,6 +33,7 @@ const billItemSchema = new Schema<IBillItem>(
     qty: { type: Number, required: true, min: 1 },
     rate: { type: Number, required: true, min: 0 },
     total: { type: Number, required: true, min: 0 },
+    colorCode: { type: String, trim: true, default: '' },
   },
   { _id: false }
 );
@@ -42,6 +46,8 @@ const billSchema = new Schema<IBill>(
     items: [billItemSchema],
     subtotal: { type: Number, required: true, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
+    miscAmount: { type: Number, default: 0, min: 0 },
+    miscRemark: { type: String, trim: true, default: '' },
     grandTotal: { type: Number, required: true, min: 0 },
     amountPaid: { type: Number, default: 0, min: 0 },
     creditApplied: { type: Number, default: 0, min: 0 },

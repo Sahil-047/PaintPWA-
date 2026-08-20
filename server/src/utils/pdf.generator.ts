@@ -14,6 +14,8 @@ interface PdfBillData {
   items: Array<{ name: string; qty: number; rate: number; total: number; subtitle?: string }>;
   subtotal: number;
   discount: number;
+  miscAmount?: number;
+  miscRemark?: string;
   grandTotal: number;
   date: string;
   dueDate?: string;
@@ -73,12 +75,6 @@ function itemSubtitle(name: string, explicit?: string): string {
   return m ? `Pack ${m[1]}` : '';
 }
 
-function statusLabel(status?: string): string {
-  if (status === 'paid') return 'Paid';
-  if (status === 'partial') return 'Partial';
-  return 'Due';
-}
-
 function numberToWordsIndian(n: number): string {
   if (n <= 0) return 'Zero';
   const a = [
@@ -123,397 +119,363 @@ function numberToWordsIndian(n: number): string {
 }
 
 export async function generateBillPdf(data: PdfBillData): Promise<Buffer> {
-  const brand = data.firmName ?? data.billedByName ?? 'Shop';
-  const status = statusLabel(data.status);
   const received = data.received ?? ((data.amountPaid ?? 0) + (data.creditApplied ?? 0));
   const balanceDue =
     data.balanceDue ?? Math.max(0, Number((data.grandTotal - received).toFixed(2)));
   const showPaymentBreakdown = received > 0.001 || (data.status !== 'due' && data.status !== undefined);
+  const amountWords = `${numberToWordsIndian(data.grandTotal)} Rupees only`;
+  const miscAmt = data.miscAmount ?? 0;
+  const hasDiscount = data.discount > 0;
+  const hasMisc = miscAmt > 0;
+  const extraRows = (hasDiscount ? 1 : 0) + (hasMisc ? 1 : 0);
 
-  // Page height tracks content so the PDF doesn't leave a large blank bottom.
-  // More line items grow the page; overflow still wraps safely.
-  const baseHeight = showPaymentBreakdown ? 430 : 390;
-  const perItem = 26;
-  const INVOICE_PAGE = {
-    width: 480,
-    height: Math.min(780, baseHeight + Math.max(0, data.items.length - 1) * perItem),
+  // Classic cash-memo proportions; grow with line items.
+  const baseHeight = showPaymentBreakdown ? 520 : 480;
+  const perItem = 28;
+  const MEMO_PAGE = {
+    width: 420,
+    height: Math.min(780, baseHeight + Math.max(0, data.items.length + extraRows - 1) * perItem),
   };
 
-  const billStyles = StyleSheet.create({
+  const s = StyleSheet.create({
     page: {
-      paddingTop: 18,
-      paddingBottom: 16,
-      paddingHorizontal: 24,
+      paddingTop: 20,
+      paddingBottom: 18,
+      paddingHorizontal: 22,
       fontSize: 9,
       fontFamily: 'Helvetica',
-      color: '#111111',
+      color: '#000000',
       backgroundColor: '#FFFFFF',
     },
-    kicker: {
-      fontSize: 7,
-      letterSpacing: 0.6,
-      textTransform: 'uppercase',
-      color: '#767676',
-      marginBottom: 4,
-      fontWeight: 500,
-    },
-    wordmarkRow: { flexDirection: 'row', alignItems: 'center' },
-    wordmark: {
-      fontSize: 16,
+    title: {
+      fontSize: 13,
       fontWeight: 700,
-      letterSpacing: -0.2,
-      color: '#111111',
-      marginRight: 8,
+      textAlign: 'center',
+      letterSpacing: 1.2,
+      textDecoration: 'underline',
+      marginBottom: 14,
     },
-    status: {
-      fontSize: 7,
-      letterSpacing: 0.4,
-      textTransform: 'uppercase',
-      color: '#111111',
-      borderWidth: 1,
-      borderColor: '#111111',
-      paddingTop: 2,
-      paddingBottom: 2,
-      paddingHorizontal: 6,
-      borderRadius: 2,
-      fontWeight: 600,
-    },
-    headerRow: {
+    metaRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'flex-end',
-      borderBottomWidth: 1.5,
-      borderBottomColor: '#111111',
-      paddingBottom: 8,
-      marginBottom: 10,
-    },
-    headerMeta: { textAlign: 'right', fontSize: 8, color: '#767676', lineHeight: 1.45 },
-    headerMetaStrong: { color: '#111111', fontWeight: 600 },
-    infoGrid: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingBottom: 8,
+      justifyContent: 'flex-end',
       marginBottom: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: '#E4E4E4',
     },
-    infoCol: { width: '48%' },
-    infoLabel: {
-      fontSize: 7,
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-      color: '#AFAFAF',
-      marginBottom: 3,
+    metaText: { fontSize: 9.5 },
+    metaLabel: { fontWeight: 700 },
+    toRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      marginBottom: 4,
+    },
+    toLabel: { fontSize: 9.5, fontWeight: 700, width: 28 },
+    toLine: {
+      flex: 1,
+      borderBottomWidth: 1,
+      borderBottomColor: '#000000',
+      borderStyle: 'dotted',
+      paddingBottom: 2,
+      fontSize: 9.5,
       fontWeight: 600,
     },
-    infoName: { fontSize: 9.5, fontWeight: 600, marginBottom: 2, color: '#111111' },
-    muted: { fontSize: 8, color: '#767676', marginBottom: 1, lineHeight: 1.35 },
-    orderStrip: {
-      flexDirection: 'row',
-      borderWidth: 1,
-      borderColor: '#D4D4D4',
-      borderRadius: 4,
-      paddingVertical: 6,
-      paddingHorizontal: 8,
-      marginBottom: 10,
+    toDetail: { fontSize: 8, color: '#333333', marginLeft: 28, marginBottom: 10 },
+    table: {
+      borderWidth: 1.5,
+      borderColor: '#000000',
+      marginTop: 4,
     },
-    orderCell: { flex: 1 },
-    orderCellBorder: {
-      flex: 1,
-      borderLeftWidth: 1,
-      borderLeftColor: '#E4E4E4',
-      paddingLeft: 8,
-      marginLeft: 8,
-    },
-    orderValue: { fontSize: 8.5, fontWeight: 600, color: '#111111' },
     tableHeader: {
       flexDirection: 'row',
       borderBottomWidth: 1.5,
-      borderBottomColor: '#111111',
-      paddingBottom: 4,
+      borderBottomColor: '#000000',
+      backgroundColor: '#FFFFFF',
     },
     th: {
-      fontSize: 7,
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-      color: '#AFAFAF',
-      fontWeight: 600,
+      fontSize: 8.5,
+      fontWeight: 700,
+      textAlign: 'center',
+      paddingVertical: 5,
+      paddingHorizontal: 3,
     },
+    thBorder: { borderRightWidth: 1, borderRightColor: '#000000' },
+    colSno: { width: '10%' },
+    colPart: { width: '42%' },
+    colQty: { width: '12%' },
+    colRate: { width: '18%' },
+    colAmt: { width: '18%' },
     row: {
       flexDirection: 'row',
       borderBottomWidth: 1,
-      borderBottomColor: '#E4E4E4',
+      borderBottomColor: '#000000',
+      minHeight: 26,
+    },
+    td: {
+      fontSize: 8.5,
+      paddingVertical: 4,
+      paddingHorizontal: 4,
+    },
+    tdCenter: { textAlign: 'center' },
+    tdRight: { textAlign: 'right' },
+    partTitle: { fontSize: 8.5, fontWeight: 600 },
+    partSub: { fontSize: 7.5, color: '#333333', marginTop: 1 },
+    totalRow: {
+      flexDirection: 'row',
+      minHeight: 26,
+      alignItems: 'center',
+    },
+    totalLabelCell: {
+      width: '82%',
+      borderRightWidth: 1,
+      borderRightColor: '#000000',
       paddingVertical: 5,
+      paddingHorizontal: 6,
+      textAlign: 'right',
+      fontSize: 9,
+      fontWeight: 700,
     },
-    itemTitle: { fontSize: 9, fontWeight: 600, color: '#111111' },
-    itemSub: { fontSize: 7.5, color: '#767676', marginTop: 1 },
-    num: { textAlign: 'right', fontSize: 8.5 },
-    totalsWrap: { marginTop: 8, alignItems: 'flex-end' },
-    totals: { width: 170 },
-    totalsRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      fontSize: 8.5,
-      paddingVertical: 1.5,
-      color: '#767676',
+    totalAmtCell: {
+      width: '18%',
+      paddingVertical: 5,
+      paddingHorizontal: 4,
+      textAlign: 'right',
+      fontSize: 9.5,
+      fontWeight: 700,
     },
-    totalsFinal: {
+    wordsRow: {
+      marginTop: 10,
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'flex-end',
-      borderTopWidth: 1.5,
-      borderTopColor: '#111111',
-      marginTop: 3,
-      paddingTop: 5,
     },
-    totalsFinalLabel: {
-      fontSize: 8,
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-      color: '#767676',
-      fontWeight: 600,
+    wordsLabel: { fontSize: 9, fontWeight: 700 },
+    wordsValue: {
+      flex: 1,
+      fontSize: 9,
+      borderBottomWidth: 1,
+      borderBottomColor: '#000000',
+      borderStyle: 'dotted',
+      marginLeft: 4,
+      paddingBottom: 2,
     },
-    totalsFinalAmount: { fontSize: 12, fontWeight: 700, color: '#111111' },
-    payRow: {
+    payBlock: { marginTop: 8 },
+    payLine: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      fontSize: 8.5,
-      paddingVertical: 2,
-      marginTop: 3,
+      fontSize: 9,
+      marginBottom: 2,
     },
-    payReceived: { color: '#16a34a', fontWeight: 700 },
-    payDue: { color: '#b45309', fontWeight: 700 },
     footer: {
-      marginTop: 12,
-      paddingTop: 8,
-      borderTopWidth: 1,
-      borderTopColor: '#E4E4E4',
+      marginTop: 16,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-end',
     },
-    footerHeading: {
-      fontSize: 7,
-      letterSpacing: 0.5,
-      textTransform: 'uppercase',
-      color: '#AFAFAF',
-      marginBottom: 3,
-      fontWeight: 600,
-    },
-    footerNote: { fontSize: 7.5, color: '#767676', maxWidth: 240, lineHeight: 1.4 },
-    signature: { alignItems: 'flex-end', width: 130 },
-    signatureLine: {
-      width: 120,
+    terms: { fontSize: 7.5, lineHeight: 1.45, maxWidth: 220 },
+    eoe: { fontWeight: 700, marginBottom: 3, fontSize: 8 },
+    signWrap: { alignItems: 'flex-end', width: 140 },
+    signSpace: { height: 36 },
+    signLine: {
+      width: 130,
       borderTopWidth: 1,
-      borderTopColor: '#111111',
+      borderTopColor: '#000000',
       marginBottom: 3,
     },
-    signatureRole: { fontSize: 7.5, color: '#767676' },
+    signLabel: { fontSize: 8.5, fontWeight: 600 },
   });
+
+  const cellBorder = { borderRightWidth: 1, borderRightColor: '#000000' };
 
   const pdf = React.createElement(
     Document,
     null,
     React.createElement(
       Page,
-      { size: INVOICE_PAGE, style: billStyles.page },
+      { size: MEMO_PAGE, style: s.page },
+
+      React.createElement(Text, { style: s.title }, 'BILL / CASH MEMO'),
 
       React.createElement(
         View,
-        { style: billStyles.headerRow },
+        { style: s.metaRow },
         React.createElement(
-          View,
-          null,
-          React.createElement(Text, { style: billStyles.kicker }, 'Invoice'),
-          React.createElement(
-            View,
-            { style: billStyles.wordmarkRow },
-            React.createElement(Text, { style: billStyles.wordmark }, brand),
-            React.createElement(Text, { style: billStyles.status }, status)
-          )
-        ),
-        React.createElement(
-          View,
-          { style: billStyles.headerMeta },
-          React.createElement(
-            Text,
-            null,
-            React.createElement(Text, { style: billStyles.headerMetaStrong }, 'Invoice  '),
-            data.billNo
-          ),
-          React.createElement(
-            Text,
-            null,
-            React.createElement(Text, { style: billStyles.headerMetaStrong }, 'Issued  '),
-            formatDate(data.date)
-          ),
-          React.createElement(
-            Text,
-            null,
-            React.createElement(Text, { style: billStyles.headerMetaStrong }, 'Due  '),
-            formatDate(data.dueDate ?? data.date)
-          )
+          Text,
+          { style: s.metaText },
+          React.createElement(Text, { style: s.metaLabel }, 'Date : '),
+          formatDate(data.date)
         )
       ),
 
       React.createElement(
         View,
-        { style: billStyles.infoGrid },
-        React.createElement(
-          View,
-          { style: billStyles.infoCol },
-          React.createElement(Text, { style: billStyles.infoLabel }, 'Billed by'),
-          React.createElement(Text, { style: billStyles.infoName }, data.billedByName ?? brand),
-          data.billedByEmail
-            ? React.createElement(Text, { style: billStyles.muted }, data.billedByEmail)
-            : null,
-          ...(data.billedByAddress
-            ? data.billedByAddress.split('\n').map((line, i) =>
-                React.createElement(Text, { key: `addr-${i}`, style: billStyles.muted }, line)
-              )
-            : [])
-        ),
-        React.createElement(
-          View,
-          { style: billStyles.infoCol },
-          React.createElement(Text, { style: billStyles.infoLabel }, 'Billed to'),
-          React.createElement(Text, { style: billStyles.infoName }, data.customerName),
-          data.customerPhone
-            ? React.createElement(Text, { style: billStyles.muted }, data.customerPhone)
-            : null,
-          data.customerEmail
-            ? React.createElement(Text, { style: billStyles.muted }, data.customerEmail)
-            : null,
-          data.customerAddress
-            ? React.createElement(Text, { style: billStyles.muted }, data.customerAddress)
-            : null
-        )
+        { style: s.toRow },
+        React.createElement(Text, { style: s.toLabel }, 'To'),
+        React.createElement(Text, { style: s.toLine }, data.customerName || ' ')
       ),
-
-      React.createElement(
-        View,
-        { style: billStyles.orderStrip },
-        React.createElement(
-          View,
-          { style: billStyles.orderCell },
-          React.createElement(Text, { style: billStyles.infoLabel }, 'Order ref'),
-          React.createElement(Text, { style: billStyles.orderValue }, data.orderRef ?? data.billNo)
-        ),
-        React.createElement(
-          View,
-          { style: billStyles.orderCellBorder },
-          React.createElement(Text, { style: billStyles.infoLabel }, 'Sold by'),
-          React.createElement(Text, { style: billStyles.orderValue }, data.soldBy ?? 'Counter')
-        ),
-        React.createElement(
-          View,
-          { style: billStyles.orderCellBorder },
-          React.createElement(Text, { style: billStyles.infoLabel }, 'Delivery'),
-          React.createElement(Text, { style: billStyles.orderValue }, data.delivery ?? 'Store pickup')
-        )
-      ),
-
-      React.createElement(
-        View,
-        { style: billStyles.tableHeader },
-        React.createElement(Text, { style: [billStyles.th, { width: '46%' }] }, 'Description'),
-        React.createElement(Text, { style: [billStyles.th, billStyles.num, { width: '14%' }] }, 'Qty'),
-        React.createElement(Text, { style: [billStyles.th, billStyles.num, { width: '20%' }] }, 'Rate'),
-        React.createElement(Text, { style: [billStyles.th, billStyles.num, { width: '20%' }] }, 'Amount')
-      ),
-
-      ...data.items.map((item, idx) => {
-        const sub = itemSubtitle(item.name, item.subtitle);
-        return React.createElement(
-          View,
-          { key: `${item.name}-${idx}`, style: billStyles.row },
-          React.createElement(
-            View,
-            { style: { width: '46%', paddingRight: 6 } },
-            React.createElement(Text, { style: billStyles.itemTitle }, itemTitle(item.name)),
-            sub ? React.createElement(Text, { style: billStyles.itemSub }, sub) : null
-          ),
-          React.createElement(Text, { style: [billStyles.num, { width: '14%' }] }, String(item.qty)),
-          React.createElement(
+      data.customerPhone || data.customerAddress
+        ? React.createElement(
             Text,
-            { style: [billStyles.num, { width: '20%' }] },
-            formatCurrency(item.rate)
-          ),
-          React.createElement(
-            Text,
-            { style: [billStyles.num, { width: '20%' }] },
-            formatCurrency(item.total)
+            { style: s.toDetail },
+            [data.customerPhone, data.customerAddress].filter(Boolean).join('  ·  ')
           )
-        );
-      }),
+        : null,
 
       React.createElement(
         View,
-        { style: billStyles.totalsWrap },
+        { style: s.table },
         React.createElement(
           View,
-          { style: billStyles.totals },
-          React.createElement(
+          { style: s.tableHeader },
+          React.createElement(Text, { style: [s.th, s.colSno, s.thBorder] }, 'S.No.'),
+          React.createElement(Text, { style: [s.th, s.colPart, s.thBorder] }, 'PARTICULARS'),
+          React.createElement(Text, { style: [s.th, s.colQty, s.thBorder] }, 'Qty'),
+          React.createElement(Text, { style: [s.th, s.colRate, s.thBorder] }, 'Rate'),
+          React.createElement(Text, { style: [s.th, s.colAmt] }, 'Amount')
+        ),
+
+        ...data.items.map((item, idx) => {
+          const sub = itemSubtitle(item.name, item.subtitle);
+          return React.createElement(
             View,
-            { style: billStyles.totalsRow },
-            React.createElement(Text, null, 'Subtotal'),
-            React.createElement(Text, null, formatCurrency(data.subtotal))
-          ),
-          data.discount > 0
-            ? React.createElement(
-                View,
-                { style: billStyles.totalsRow },
-                React.createElement(Text, null, 'Discount'),
-                React.createElement(Text, null, `- ${formatCurrency(data.discount)}`)
-              )
-            : null,
-          React.createElement(
-            View,
-            { style: billStyles.totalsFinal },
-            React.createElement(Text, { style: billStyles.totalsFinalLabel }, 'Total'),
+            { key: `item-${idx}`, style: s.row },
             React.createElement(
               Text,
-              { style: billStyles.totalsFinalAmount },
-              formatCurrency(data.grandTotal)
+              { style: [s.td, s.tdCenter, s.colSno, cellBorder] },
+              String(idx + 1)
+            ),
+            React.createElement(
+              View,
+              { style: [s.colPart, cellBorder, { paddingVertical: 4, paddingHorizontal: 4 }] },
+              React.createElement(Text, { style: s.partTitle }, itemTitle(item.name)),
+              sub ? React.createElement(Text, { style: s.partSub }, sub) : null
+            ),
+            React.createElement(
+              Text,
+              { style: [s.td, s.tdCenter, s.colQty, cellBorder] },
+              String(item.qty)
+            ),
+            React.createElement(
+              Text,
+              { style: [s.td, s.tdRight, s.colRate, cellBorder] },
+              formatCurrency(item.rate)
+            ),
+            React.createElement(
+              Text,
+              { style: [s.td, s.tdRight, s.colAmt] },
+              formatCurrency(item.total)
             )
-          ),
-          showPaymentBreakdown
-            ? React.createElement(
-                View,
-                { style: billStyles.payRow },
-                React.createElement(Text, { style: billStyles.payReceived }, 'Received'),
-                React.createElement(Text, { style: billStyles.payReceived }, formatCurrency(received))
+          );
+        }),
+
+        hasDiscount
+          ? React.createElement(
+              View,
+              { key: 'discount', style: s.row },
+              React.createElement(Text, { style: [s.td, s.tdCenter, s.colSno, cellBorder] }, ''),
+              React.createElement(
+                Text,
+                { style: [s.td, s.colPart, cellBorder] },
+                'Less : Discount'
+              ),
+              React.createElement(Text, { style: [s.td, s.colQty, cellBorder] }, ''),
+              React.createElement(Text, { style: [s.td, s.colRate, cellBorder] }, ''),
+              React.createElement(
+                Text,
+                { style: [s.td, s.tdRight, s.colAmt] },
+                `- ${formatCurrency(data.discount)}`
               )
-            : null,
-          showPaymentBreakdown
-            ? React.createElement(
-                View,
-                { style: billStyles.payRow },
-                React.createElement(Text, { style: billStyles.payDue }, 'Balance due'),
-                React.createElement(Text, { style: billStyles.payDue }, formatCurrency(balanceDue))
+            )
+          : null,
+
+        hasMisc
+          ? React.createElement(
+              View,
+              { key: 'misc', style: s.row },
+              React.createElement(Text, { style: [s.td, s.tdCenter, s.colSno, cellBorder] }, ''),
+              React.createElement(
+                Text,
+                { style: [s.td, s.colPart, cellBorder] },
+                data.miscRemark?.trim()
+                  ? `Add : Misc (${data.miscRemark.trim()})`
+                  : 'Add : Miscellaneous'
+              ),
+              React.createElement(Text, { style: [s.td, s.colQty, cellBorder] }, ''),
+              React.createElement(Text, { style: [s.td, s.colRate, cellBorder] }, ''),
+              React.createElement(
+                Text,
+                { style: [s.td, s.tdRight, s.colAmt] },
+                formatCurrency(miscAmt)
               )
-            : null
+            )
+          : null,
+
+        React.createElement(
+          View,
+          { style: s.totalRow },
+          React.createElement(Text, { style: s.totalLabelCell }, 'TOTAL'),
+          React.createElement(
+            Text,
+            { style: s.totalAmtCell },
+            formatCurrency(data.grandTotal)
+          )
         )
       ),
 
       React.createElement(
         View,
-        { style: billStyles.footer },
+        { style: s.wordsRow },
+        React.createElement(Text, { style: s.wordsLabel }, 'TOTAL AMOUNT'),
+        React.createElement(Text, { style: s.wordsValue }, amountWords)
+      ),
+
+      showPaymentBreakdown
+        ? React.createElement(
+            View,
+            { style: s.payBlock },
+            (data.creditApplied ?? 0) > 0.001
+              ? React.createElement(
+                  View,
+                  { style: s.payLine },
+                  React.createElement(Text, null, 'Store credit'),
+                  React.createElement(Text, null, formatCurrency(data.creditApplied ?? 0))
+                )
+              : null,
+            (data.amountPaid ?? 0) > 0.001
+              ? React.createElement(
+                  View,
+                  { style: s.payLine },
+                  React.createElement(Text, null, 'Cash / UPI received'),
+                  React.createElement(Text, null, formatCurrency(data.amountPaid ?? 0))
+                )
+              : null,
+            React.createElement(
+              View,
+              { style: s.payLine },
+              React.createElement(Text, null, 'Total received'),
+              React.createElement(Text, null, formatCurrency(received))
+            ),
+            React.createElement(
+              View,
+              { style: s.payLine },
+              React.createElement(Text, null, 'Balance due'),
+              React.createElement(Text, null, formatCurrency(balanceDue))
+            )
+          )
+        : null,
+
+      React.createElement(
+        View,
+        { style: s.footer },
         React.createElement(
           View,
-          null,
-          React.createElement(Text, { style: billStyles.footerHeading }, 'Notes'),
-          React.createElement(
-            Text,
-            { style: billStyles.footerNote },
-            'Thank you for your purchase. Keep this invoice for shade-batch matching on reorders.'
-          )
+          { style: s.terms },
+          React.createElement(Text, { style: s.eoe }, 'E. & O. E.'),
+          React.createElement(Text, null, '1. Goods once sold will not be taken back.'),
+          React.createElement(Text, null, '2. Keep this memo for shade / batch matching on reorders.')
         ),
         React.createElement(
           View,
-          { style: billStyles.signature },
-          React.createElement(View, { style: billStyles.signatureLine }),
-          React.createElement(Text, { style: billStyles.signatureRole }, `Signatory, ${brand}`)
+          { style: s.signWrap },
+          React.createElement(View, { style: s.signSpace }),
+          React.createElement(View, { style: s.signLine }),
+          React.createElement(Text, { style: s.signLabel }, 'Authorised Signatory')
         )
       )
     )

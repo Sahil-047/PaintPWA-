@@ -51,9 +51,10 @@ app.use((_req, _res, next) => {
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (err instanceof ZodError) {
+    const firstIssue = err.issues[0]?.message ?? 'Validation failed';
     res.status(400).json({
       success: false,
-      message: 'Validation failed',
+      message: firstIssue,
       errors: err.flatten().fieldErrors,
     });
     return;

@@ -39,11 +39,14 @@ export async function applyCustomerCredit(
   const account = await AccountModel.findOne({ tenantId, customerId });
   if (!account || account.creditBalance <= 0 || maxAmount <= 0) return 0;
 
-  const applied = Math.min(account.creditBalance, maxAmount);
-  account.creditBalance = Number((account.creditBalance - applied).toFixed(2));
-  syncAccountLedger(account);
+  const creditBefore = account.creditBalance;
+  // Cap how much credit can settle this call by temporarily holding the rest aside.
+  const hold = Math.max(0, Number((account.creditBalance - maxAmount).toFixed(2)));
+  account.creditBalance = Number((account.creditBalance - hold).toFixed(2));
+  syncAccountLedger(account, { applyCredit: true });
+  account.creditBalance = Number((account.creditBalance + hold).toFixed(2));
   await account.save();
-  return applied;
+  return Number(Math.max(0, creditBefore - hold - account.creditBalance).toFixed(2));
 }
 
 export async function addBillToAccount(
@@ -67,14 +70,12 @@ export async function addBillToAccount(
     return { account: created, creditApplied: 0 };
   }
 
-  const creditBefore = account.creditBalance;
+  // Do not auto-consume store credit — checkout must choose “Store credit” as payment.
   account.totalBilled += grandTotal;
-  syncAccountLedger(account);
+  syncAccountLedger(account, { applyCredit: false });
   await account.save();
-  // Drop legacy embedded id arrays if still present on older docs.
   await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
-  const creditApplied = Number(Math.max(0, creditBefore - account.creditBalance).toFixed(2));
-  return { account, creditApplied };
+  return { account, creditApplied: 0 };
 }
 
 export async function addPaymentToAccount(
@@ -150,8 +151,11 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
     const billedFromInvoices = Number(
       bills.reduce((s, b) => s + (b.grandTotal ?? 0), 0).toFixed(2)
     );
+    // Cash + store credit applied on invoices both settle the account.
     const paidFromBills = Number(
-      bills.reduce((s, b) => s + (b.amountPaid ?? 0), 0).toFixed(2)
+      bills
+        .reduce((s, b) => s + (b.amountPaid ?? 0) + (b.creditApplied ?? 0), 0)
+        .toFixed(2)
     );
     const paidFromAdvances = Number(
       memos

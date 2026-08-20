@@ -215,13 +215,15 @@ export const billingApi = {
     }),
   create: async (data: {
     customer: { name: string; phone?: string; address?: string; gstin?: string };
-    items: Array<{ productId: string; qty: number; rate?: number; size?: string }>;
+    items: Array<{ productId: string; qty: number; rate?: number; size?: string; colorCode?: string }>;
     discount?: number;
+    miscAmount?: number;
+    miscRemark?: string;
     amountPaid?: number;
     paymentMode?: string;
   }) => {
     const res = await axiosInstance.post<
-      ApiResponse<{ bill: Bill; cashMemo: CashMemo | null }>
+      ApiResponse<{ bill: Bill; cashMemo: CashMemo | null; creditApplied?: number }>
     >('/bills', data);
     return unwrap(res);
   },

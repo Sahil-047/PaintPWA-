@@ -68,6 +68,9 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   const billItems = [];
 
   for (const item of input.items) {
+    if (!Number.isFinite(item.qty) || item.qty < 1) {
+      throw new AppError('Quantity must be at least 1 for every bill item', 400);
+    }
     const product = await inventoryService.deductStock(
       tenantId,
       item.productId,
@@ -82,6 +85,7 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     subtotal += total;
     const baseName = String((product as { name?: string }).name ?? '');
     const productName = item.size ? `${baseName} (${item.size})` : baseName;
+    const colorCode = item.colorCode?.trim() || '';
 
     billItems.push({
       productId: new Types.ObjectId(String((product as { _id?: unknown })._id)),
@@ -89,14 +93,22 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
       qty: item.qty,
       rate,
       total,
+      colorCode,
     });
   }
 
   const discount = input.discount ?? 0;
-  const grandTotal = Math.max(0, subtotal - discount);
+  const miscAmount = input.miscAmount ?? 0;
+  const miscRemark = miscAmount > 0 ? (input.miscRemark ?? '').trim() : '';
+  if (miscAmount > 0 && !miscRemark) {
+    throw new AppError('Remark is required when miscellaneous amount is added', 400);
+  }
+  const grandTotal = Math.max(0, subtotal - discount + miscAmount);
 
-  const amountPaid = Math.min(input.amountPaid ?? 0, grandTotal);
-  const paymentMode = input.paymentMode ?? 'cash';
+  const requestedAmount = Math.max(0, input.amountPaid ?? 0);
+  const paymentMode = (input.paymentMode ?? 'cash').toLowerCase();
+  const payWithStoreCredit =
+    paymentMode === 'store_credit' || paymentMode === 'credit' || paymentMode === 'store-credit';
 
   const bill = await BillModel.create({
     tenantId,
@@ -105,27 +117,42 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     items: billItems,
     subtotal,
     discount,
+    miscAmount,
+    miscRemark,
     grandTotal,
     amountPaid: 0,
     creditApplied: 0,
-    paymentMode,
+    paymentMode: payWithStoreCredit ? 'store_credit' : paymentMode,
     status: 'due',
   });
 
-  const { creditApplied } = await accountsService.addBillToAccount(
+  await accountsService.addBillToAccount(
     tenantId,
     customer._id as Types.ObjectId,
     bill._id as Types.ObjectId,
     grandTotal
   );
 
-  if (amountPaid > 0) {
-    await accountsService.addPaymentToAccount(
+  let creditApplied = 0;
+  let amountPaid = 0;
+
+  if (payWithStoreCredit) {
+    const creditToApply = Math.min(requestedAmount || grandTotal, grandTotal);
+    creditApplied = await accountsService.applyCustomerCredit(
       tenantId,
       customer._id as Types.ObjectId,
-      bill._id as Types.ObjectId,
-      amountPaid
+      creditToApply
     );
+  } else {
+    amountPaid = Math.min(requestedAmount, grandTotal);
+    if (amountPaid > 0) {
+      await accountsService.addPaymentToAccount(
+        tenantId,
+        customer._id as Types.ObjectId,
+        bill._id as Types.ObjectId,
+        amountPaid
+      );
+    }
   }
 
   const received = Number((creditApplied + amountPaid).toFixed(2));
@@ -148,14 +175,24 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
     customerEmail: undefined,
     customerPhone: input.customer.phone ?? customerDoc?.phone ?? undefined,
     customerAddress: input.customer.address ?? customerDoc?.address ?? undefined,
-    items: billItems.map((i) => ({
-      name: i.productName,
-      qty: i.qty,
-      rate: i.rate,
-      total: i.total,
-    })),
+    items: billItems.map((i) => {
+      const pack = i.productName.match(/\(([^)]+)\)\s*$/)?.[1];
+      const parts = [
+        pack ? `Pack ${pack}` : '',
+        i.colorCode ? `Color ${i.colorCode}` : '',
+      ].filter(Boolean);
+      return {
+        name: i.productName,
+        qty: i.qty,
+        rate: i.rate,
+        total: i.total,
+        subtitle: parts.length ? parts.join(' · ') : undefined,
+      };
+    }),
     subtotal,
     discount,
+    miscAmount,
+    miscRemark: miscRemark || undefined,
     grandTotal,
     date: issuedAt,
     dueDate: issuedAt,
@@ -226,14 +263,24 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
     customerName: customer?.name ?? 'Customer',
     customerPhone: customer?.phone,
     customerAddress: customer?.address,
-    items: bill.items.map((i) => ({
-      name: i.productName,
-      qty: i.qty,
-      rate: i.rate,
-      total: i.total,
-    })),
+    items: bill.items.map((i) => {
+      const pack = i.productName.match(/\(([^)]+)\)\s*$/)?.[1];
+      const parts = [
+        pack ? `Pack ${pack}` : '',
+        i.colorCode ? `Color ${i.colorCode}` : '',
+      ].filter(Boolean);
+      return {
+        name: i.productName,
+        qty: i.qty,
+        rate: i.rate,
+        total: i.total,
+        subtitle: parts.length ? parts.join(' · ') : undefined,
+      };
+    }),
     subtotal: bill.subtotal,
     discount: bill.discount,
+    miscAmount: bill.miscAmount ?? 0,
+    miscRemark: bill.miscRemark || undefined,
     grandTotal: bill.grandTotal,
     date: createdAt,
     dueDate: createdAt,
