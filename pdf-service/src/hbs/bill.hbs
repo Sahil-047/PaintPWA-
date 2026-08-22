@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bill - {{customerName}}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: {{pageWidth}}px {{pageHeight}}px; margin: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9px;
+      color: #000;
+      background: #fff;
+      width: {{pageWidth}}px;
+      min-height: {{pageHeight}}px;
+      padding: 20px 22px 18px;
+    }
+    .title {
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 1.2px;
+      text-decoration: underline;
+      margin-bottom: 14px;
+    }
+    .meta-row { text-align: right; margin-bottom: 8px; font-size: 9.5px; }
+    .meta-label { font-weight: 700; }
+    .to-row { display: flex; align-items: flex-end; margin-bottom: 4px; }
+    .to-label { font-weight: 700; width: 28px; font-size: 9.5px; }
+    .to-line {
+      flex: 1;
+      border-bottom: 1px dotted #000;
+      font-weight: 600;
+      font-size: 9.5px;
+      padding-bottom: 2px;
+    }
+    .to-detail { font-size: 8px; color: #333; margin-left: 28px; margin-bottom: 10px; }
+    table { width: 100%; border-collapse: collapse; border: 1.5px solid #000; margin-top: 4px; }
+    th, td { border: 1px solid #000; padding: 4px; vertical-align: top; }
+    th { font-size: 8.5px; font-weight: 700; text-align: center; padding: 5px 3px; }
+    td { font-size: 8.5px; }
+    .col-sno { width: 10%; text-align: center; }
+    .col-part { width: 42%; }
+    .col-qty { width: 12%; text-align: center; }
+    .col-rate { width: 18%; text-align: right; }
+    .col-amt { width: 18%; text-align: right; }
+    .part-title { font-weight: 600; font-size: 8.5px; }
+    .part-sub { font-size: 7.5px; color: #333; margin-top: 1px; }
+    .total-row td { font-weight: 700; font-size: 9px; }
+    .total-label { text-align: right; padding-right: 6px; }
+    .words-row { margin-top: 10px; display: flex; align-items: flex-end; }
+    .words-label { font-weight: 700; font-size: 9px; }
+    .words-value {
+      flex: 1;
+      font-size: 9px;
+      border-bottom: 1px dotted #000;
+      margin-left: 4px;
+      padding-bottom: 2px;
+    }
+    .pay-block { margin-top: 8px; }
+    .pay-line { display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 2px; }
+    .footer { margin-top: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .terms { font-size: 7.5px; line-height: 1.45; max-width: 220px; }
+    .eoe { font-weight: 700; margin-bottom: 3px; font-size: 8px; }
+    .sign-wrap { text-align: right; width: 140px; }
+    .sign-space { height: 36px; }
+    .sign-line { width: 130px; border-top: 1px solid #000; margin-left: auto; margin-bottom: 3px; }
+    .sign-label { font-size: 8.5px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="title">BILL / CASH MEMO</div>
+
+  <div class="meta-row">
+    <span class="meta-label">Date : </span>{{formattedDate}}
+  </div>
+
+  <div class="to-row">
+    <span class="to-label">To</span>
+    <span class="to-line">{{customerName}}</span>
+  </div>
+  {{#if customerDetail}}
+  <div class="to-detail">{{customerDetail}}</div>
+  {{/if}}
+
+  <table>
+    <thead>
+      <tr>
+        <th class="col-sno">S.No.</th>
+        <th class="col-part">PARTICULARS</th>
+        <th class="col-qty">Qty</th>
+        <th class="col-rate">Rate</th>
+        <th class="col-amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each items}}
+      <tr>
+        <td class="col-sno">{{sno}}</td>
+        <td class="col-part">
+          <div class="part-title">{{title}}</div>
+          {{#if subtitle}}<div class="part-sub">{{subtitle}}</div>{{/if}}
+        </td>
+        <td class="col-qty">{{qty}}</td>
+        <td class="col-rate">{{rateFormatted}}</td>
+        <td class="col-amt">{{totalFormatted}}</td>
+      </tr>
+      {{/each}}
+
+      {{#if hasDiscount}}
+      <tr>
+        <td class="col-sno"></td>
+        <td class="col-part">Less : Discount</td>
+        <td class="col-qty"></td>
+        <td class="col-rate"></td>
+        <td class="col-amt">- {{discountFormatted}}</td>
+      </tr>
+      {{/if}}
+
+      {{#if hasMisc}}
+      <tr>
+        <td class="col-sno"></td>
+        <td class="col-part">{{miscLabel}}</td>
+        <td class="col-qty"></td>
+        <td class="col-rate"></td>
+        <td class="col-amt">{{miscFormatted}}</td>
+      </tr>
+      {{/if}}
+
+      <tr class="total-row">
+        <td colspan="4" class="total-label">TOTAL</td>
+        <td class="col-amt">{{grandTotalFormatted}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="words-row">
+    <span class="words-label">TOTAL AMOUNT</span>
+    <span class="words-value">{{amountWords}}</span>
+  </div>
+
+  {{#if showPaymentBreakdown}}
+  <div class="pay-block">
+    {{#if hasCredit}}
+    <div class="pay-line">
+      <span>Store credit</span>
+      <span>{{creditFormatted}}</span>
+    </div>
+    {{/if}}
+    {{#if hasCashPaid}}
+    <div class="pay-line">
+      <span>Cash / UPI received</span>
+      <span>{{amountPaidFormatted}}</span>
+    </div>
+    {{/if}}
+    <div class="pay-line">
+      <span>Total received</span>
+      <span>{{receivedFormatted}}</span>
+    </div>
+    <div class="pay-line">
+      <span>Balance due</span>
+      <span>{{balanceDueFormatted}}</span>
+    </div>
+  </div>
+  {{/if}}
+
+  <div class="footer">
+    <div class="terms">
+      <div class="eoe">E. &amp; O. E.</div>
+      <div>1. Goods once sold will not be taken back.</div>
+      <div>2. Keep this memo for shade / batch matching on reorders.</div>
+    </div>
+    <div class="sign-wrap">
+      <div class="sign-space"></div>
+      <div class="sign-line"></div>
+      <div class="sign-label">Authorised Signatory</div>
+    </div>
+  </div>
+</body>
+</html>

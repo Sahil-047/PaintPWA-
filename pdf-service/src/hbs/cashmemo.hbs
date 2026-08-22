@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cash Memo - {{memoNo}}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    @page { size: 640px 400px; margin: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 9px;
+      color: #111;
+      background: #fff;
+      width: 640px;
+      min-height: 400px;
+      padding: 22px 26px 18px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 1.5px solid #111;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+    .title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+    .subtitle { font-size: 8px; color: #767676; margin-top: 3px; }
+    .firm-block { text-align: right; }
+    .firm { font-size: 11px; font-weight: 700; }
+    .invoice-ref { font-size: 8px; color: #767676; margin-top: 3px; }
+    .status {
+      display: inline-block;
+      margin-top: 5px;
+      font-size: 7px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: 1px solid #111;
+      padding: 2px 6px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    .meta-strip {
+      display: flex;
+      border: 1px solid #d4d4d4;
+      border-radius: 4px;
+      padding: 8px 10px;
+      margin-bottom: 14px;
+    }
+    .meta-cell { flex: 1; }
+    .meta-cell-mid {
+      flex: 1;
+      border-left: 1px solid #e4e4e4;
+      border-right: 1px solid #e4e4e4;
+      padding: 0 10px;
+      margin: 0 10px;
+    }
+    .meta-label {
+      font-size: 7px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: #afafaf;
+      font-weight: 600;
+      margin-bottom: 3px;
+    }
+    .meta-value { font-size: 9px; font-weight: 600; }
+    .main-row { display: flex; }
+    .main-left { flex: 1; padding-right: 14px; }
+    .line { display: flex; align-items: flex-end; margin-bottom: 9px; }
+    .line-label { font-weight: 700; margin-right: 6px; white-space: nowrap; }
+    .underline {
+      flex: 1;
+      border-bottom: 1px solid #c4c4c4;
+      padding-bottom: 2px;
+      min-height: 14px;
+    }
+    .note-inline { font-size: 8px; color: #555; margin-left: 6px; flex-shrink: 1; }
+    .settle-box {
+      width: 200px;
+      border: 1px solid #d4d4d4;
+      border-radius: 4px;
+      padding: 10px;
+      background: #fafafa;
+    }
+    .settle-title { font-size: 8px; font-weight: 700; margin-bottom: 7px; }
+    .settle-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .settle-label { font-size: 8px; color: #767676; }
+    .settle-value { font-size: 8px; font-weight: 600; }
+    .settle-balance { font-size: 8.5px; font-weight: 700; }
+    .settle-divider { margin-top: 4px; padding-top: 5px; border-top: 1px solid #e4e4e4; }
+    .tip { font-size: 7.5px; color: #767676; margin-top: 10px; line-height: 1.4; }
+    .footer {
+      margin-top: 16px;
+      padding-top: 10px;
+      border-top: 1px solid #e4e4e4;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .amount-box {
+      display: flex;
+      border: 1px solid #111;
+      height: 24px;
+      width: 130px;
+    }
+    .amount-prefix {
+      width: 32px;
+      background: #111;
+      color: #fff;
+      font-size: 9px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 24px;
+    }
+    .amount-value {
+      flex: 1;
+      text-align: right;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 24px;
+      padding-right: 8px;
+    }
+    .sig-row { display: flex; }
+    .sig { width: 120px; text-align: center; margin-left: 18px; }
+    .sig-line { border-top: 1px solid #111; margin-bottom: 4px; }
+    .sig-label { font-size: 7px; color: #767676; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="title">Cash Memo</div>
+      <div class="subtitle">Advance receipt · Token for future purchases</div>
+    </div>
+    <div class="firm-block">
+      <div class="firm">{{firmName}}</div>
+      <div class="invoice-ref">Customer advance token</div>
+      <div class="status">Advance</div>
+    </div>
+  </div>
+
+  <div class="meta-strip">
+    <div class="meta-cell">
+      <div class="meta-label">Challan No.</div>
+      <div class="meta-value">{{memoNo}}</div>
+    </div>
+    <div class="meta-cell-mid">
+      <div class="meta-label">Date</div>
+      <div class="meta-value">{{formattedDate}}</div>
+    </div>
+    <div class="meta-cell">
+      <div class="meta-label">Payment mode</div>
+      <div class="meta-value">{{modeLabel}}</div>
+    </div>
+  </div>
+
+  <div class="main-row">
+    <div class="main-left">
+      <div class="line">
+        <span class="line-label">RECEIVED with thanks from</span>
+        <span class="underline">{{customerName}}</span>
+      </div>
+      <div class="line">
+        <span class="line-label">the sum of Rupees</span>
+        <span class="underline">{{amountWords}}</span>
+      </div>
+      <div class="line">
+        <span class="line-label">{{paymentLineLabel}}</span>
+        <span class="underline">{{paymentLineValue}}</span>
+      </div>
+      <div class="line">
+        <span class="line-label">Dated</span>
+        <span class="underline">{{formattedDate}}</span>
+        <span class="note-inline">as a token of amount received</span>
+      </div>
+      <div class="tip">
+        This cash memo is proof that the customer has deposited the amount above for future buying.
+        Present it when billing against this credit.
+      </div>
+    </div>
+
+    <div class="settle-box">
+      <div class="settle-title">Amount received</div>
+      <div class="settle-row">
+        <span class="settle-label">Received</span>
+        <span class="settle-value">{{amountFormatted}}</span>
+      </div>
+      <div class="settle-row settle-divider">
+        <span class="settle-balance">Credit for future buying</span>
+        <span class="settle-balance">{{amountFormatted}}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="amount-box">
+      <div class="amount-prefix">Rs.</div>
+      <div class="amount-value">{{amountBoxValue}}</div>
+    </div>
+    <div class="sig-row">
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div class="sig-label">Signature of customer</div>
+      </div>
+      <div class="sig">
+        <div class="sig-line"></div>
+        <div class="sig-label">Signature of retailer</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

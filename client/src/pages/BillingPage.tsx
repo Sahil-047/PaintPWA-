@@ -376,7 +376,7 @@ export default function BillingPage() {
         0,
         cart.reduce((s, i) => s + i.price * i.quantity, 0) - discountNum + miscNum
       );
-            const creditUsed = result.bill?.creditApplied ?? result.creditApplied ?? 0;
+      const creditUsed = result.bill?.creditApplied ?? result.creditApplied ?? 0;
       const cashPaid =
         payload.paymentMode === 'store_credit' ? 0 : payload.amountPaid;
       const received = Number((cashPaid + creditUsed).toFixed(2));
@@ -394,7 +394,6 @@ export default function BillingPage() {
         toast.success('Invoice created - partial payment shown on the bill PDF');
       } else {
         toast.success('Invoice created - paid in full');
-      }
       }
       setCart([]);
       setCheckoutOpen(false);

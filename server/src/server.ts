@@ -3,11 +3,13 @@ import { connectDB } from './config/db.js';
 import { env } from './config/env.js';
 import { startReportCron } from './jobs/report.cron.js';
 import { ensureSuperAdmin, migrateLegacyTenants } from './modules/admin/admin.service.js';
+import { setupRabbitMQPublisher } from './lib/rabbitmq/index.js';
 
 async function main() {
   await connectDB();
   await migrateLegacyTenants();
   await ensureSuperAdmin();
+  await setupRabbitMQPublisher();
   startReportCron();
 
   const server = app.listen(env.PORT, () => {

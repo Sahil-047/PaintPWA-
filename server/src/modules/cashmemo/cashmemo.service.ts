@@ -1,13 +1,30 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { generateMemoNo } from '../../utils/invoice.number.js';
-import { generateCashMemoPdf } from '../../utils/pdf.generator.js';
-import { buildPdfKey, savePdfByKey } from '../../utils/pdf.storage.js';
+import { buildPdfKey } from '../../utils/pdf.storage.js';
+import { queueCashMemoPdfJob, resolveCashMemoPdf } from '../../utils/pdf.job.js';
+import type { PdfCashMemoData } from '../../types/pdf.types.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { CustomerModel } from '../accounts/customer.model.js';
 import { TenantModel } from '../auth/auth.model.js';
 import { CashMemoModel } from './cashmemo.model.js';
 import type { CreateCashMemoInput } from './cashmemo.validator.js';
+
+function buildCashMemoPdfData(
+  memo: { memoNo: string; amountPaid: number; paymentMode: string; paidAt: Date },
+  firmName: string,
+  customerName: string
+): PdfCashMemoData {
+  return {
+    memoNo: memo.memoNo,
+    firmName,
+    customerName,
+    amountPaid: memo.amountPaid,
+    paymentMode: memo.paymentMode,
+    chequeNo: undefined,
+    date: memo.paidAt.toISOString(),
+  };
+}
 
 export async function createCashMemo(tenantId: Types.ObjectId, input: CreateCashMemoInput) {
   const customer = await CustomerModel.findOne({ _id: input.customerId, tenantId });
@@ -29,6 +46,15 @@ export async function createCashMemo(tenantId: Types.ObjectId, input: CreateCash
     input.amountPaid,
     { asAdvance: true }
   );
+
+  const tenant = await TenantModel.findById(tenantId).lean();
+  const firmName = tenant?.name?.trim() || 'Shop';
+  const pdfKey = buildPdfKey(String(tenantId), 'cashmemo', memo.memoNo);
+  const pdfData = buildCashMemoPdfData(memo, firmName, customer.name ?? '—');
+
+  memo.pdfUrl = pdfKey;
+  await memo.save();
+  await queueCashMemoPdfJob(String(tenantId), String(memo._id), memo.memoNo, pdfData, pdfKey);
 
   return memo;
 }
@@ -53,23 +79,13 @@ export async function getCashMemoPdf(tenantId: Types.ObjectId, memoId: string) {
   const customer = memo.customerId as { name?: string } | null;
   const tenant = await TenantModel.findById(tenantId).lean();
   const firmName = tenant?.name?.trim() || 'Shop';
+  const pdfData = buildCashMemoPdfData(memo, firmName, customer?.name ?? '—');
 
-  const pdfBuffer = await generateCashMemoPdf({
-    memoNo: memo.memoNo,
-    firmName,
-    customerName: customer?.name ?? '—',
-    amountPaid: memo.amountPaid,
-    paymentMode: memo.paymentMode,
-    chequeNo: undefined,
-    date: memo.paidAt.toISOString(),
-  });
-
-  const pdfKey = memo.pdfUrl ?? buildPdfKey(String(tenantId), 'cashmemo', memo.memoNo);
-  await savePdfByKey(pdfKey, pdfBuffer);
-  if (!memo.pdfUrl) {
-    memo.pdfUrl = pdfKey;
-    await memo.save();
-  }
-
-  return pdfBuffer;
+  return resolveCashMemoPdf(
+    String(tenantId),
+    String(memo._id),
+    memo.memoNo,
+    pdfData,
+    memo.pdfUrl
+  );
 }

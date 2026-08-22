@@ -1,0 +1,38 @@
+{
+  "name": "paint-pdf-service",
+  "version": "1.0.0",
+  "description": "PaintPWA PDF generation service with RabbitMQ consumer and S3 storage",
+  "main": "dist/server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon --exec ts-node ./src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc && node scripts/copy-hbs.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.901.0",
+    "@aws-sdk/s3-request-presigner": "^3.901.0",
+    "amqplib": "^0.10.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "handlebars": "^4.7.9",
+    "mongoose": "^8.19.1",
+    "puppeteer": "^24.42.0",
+    "winston": "^3.18.3",
+    "yup": "^1.7.1"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.0.0",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.0.0"
+  }
+}

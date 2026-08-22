@@ -12,8 +12,10 @@
     "migrate:products:dry": "node scripts/migrate-products.mjs --dry-run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.901.0",
     "@paint-saas/shared-types": "*",
     "@react-pdf/renderer": "^4.5.1",
+    "amqplib": "^0.10.3",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -26,6 +28,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

@@ -12,6 +12,17 @@ const envSchema = z.object({
   SUPERADMIN_EMAIL: z.string().email().optional(),
   SUPERADMIN_PASSWORD: z.string().min(8).optional(),
   BOOTSTRAP_SECRET: z.string().min(8).optional(),
+  // PDF storage: local disk or S3
+  PDF_STORAGE: z.enum(['local', 's3']).default('local'),
+  AWS_REGION: z.string().optional(),
+  AWS_S3_PDF_BUCKET: z.string().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  // RabbitMQ — main API publishes; pdf-service consumes
+  RABBITMQ_URL: z.string().optional(),
+  RABBITMQ_EXCHANGE: z.string().default('paint.exchange'),
+  BILL_PDF_QUEUE: z.string().default('paint.bill.pdf.queue'),
+  CASHMEMO_PDF_QUEUE: z.string().default('paint.cashmemo.pdf.queue'),
 });
 
 const parsed = envSchema.safeParse(process.env);

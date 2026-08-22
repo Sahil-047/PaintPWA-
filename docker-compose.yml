@@ -1,3 +1,4 @@
+# Local dev — MongoDB only. For full stack see docker-compose.prod.yml
 services:
   mongodb:
     image: mongo:7

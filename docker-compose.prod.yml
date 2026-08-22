@@ -1,0 +1,107 @@
+# PaintPWA — production stack (Hostinger VPS / any Linux server with Docker)
+#
+# Usage:
+#   cp docker/.env.production.example docker/.env.production
+#   # edit secrets
+#   docker compose -f docker-compose.prod.yml --env-file docker/.env.production up -d --build
+#
+# Host nginx proxies:
+#   app.paintappstore.in  -> localhost:8080 (client)
+#   api.paintappstore.in  -> localhost:5001 (server)  OR use client /api proxy on :8080
+#   paintappstore.in      -> localhost:3000 (marketing)
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: paint-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-paint}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in docker/.env.production}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - paint-net
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: paint-api
+    restart: unless-stopped
+    env_file:
+      - docker/.env.production
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-paint}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    ports:
+      - "${API_HOST_PORT:-5001}:5000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - paint-net
+
+  pdf-service:
+    build:
+      context: .
+      dockerfile: pdf-service/Dockerfile
+    container_name: paint-pdf-service
+    restart: unless-stopped
+    env_file:
+      - docker/.env.production
+    environment:
+      NODE_ENV: production
+      PORT: 7690
+      MONGO_URI: ${MONGODB_URI}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-paint}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      PAINT_FRONTEND_BASE_URL: ${PAINT_FRONTEND_BASE_URL:-https://app.paintappstore.in}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      server:
+        condition: service_started
+    networks:
+      - paint-net
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    container_name: paint-client
+    restart: unless-stopped
+    ports:
+      - "${CLIENT_HOST_PORT:-8080}:80"
+    depends_on:
+      - server
+    networks:
+      - paint-net
+
+  marketing:
+    build:
+      context: .
+      dockerfile: marketing-next/Dockerfile
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://app.paintappstore.in}
+    container_name: paint-marketing
+    restart: unless-stopped
+    ports:
+      - "${MARKETING_HOST_PORT:-3000}:3000"
+    networks:
+      - paint-net
+
+networks:
+  paint-net:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:

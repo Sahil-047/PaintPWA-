@@ -1,8 +1,9 @@
 import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { generateBillNo } from '../../utils/invoice.number.js';
-import { generateBillPdf } from '../../utils/pdf.generator.js';
-import { buildPdfKey, savePdfByKey } from '../../utils/pdf.storage.js';
+import { buildPdfKey } from '../../utils/pdf.storage.js';
+import { queueBillPdfJob, resolveBillPdf } from '../../utils/pdf.job.js';
+import type { PdfBillData } from '../../types/pdf.types.js';
 import * as accountsService from '../accounts/accounts.service.js';
 import { CustomerModel } from '../accounts/customer.model.js';
 import { TenantModel, UserModel } from '../auth/auth.model.js';
@@ -41,6 +42,68 @@ function billStatusFromReceived(grandTotal: number, received: number): 'paid' | 
   if (received >= grandTotal - 0.001) return 'paid';
   if (received > 0) return 'partial';
   return 'due';
+}
+
+function buildBillPdfData(
+  bill: {
+    billNo: string;
+    subtotal: number;
+    discount: number;
+    miscAmount?: number;
+    miscRemark?: string;
+    grandTotal: number;
+    items: Array<{
+      productName: string;
+      colorCode?: string;
+      qty: number;
+      rate: number;
+      total: number;
+    }>;
+  },
+  shop: Awaited<ReturnType<typeof getShopBillingIdentity>>,
+  customer: { name?: string; phone?: string; address?: string },
+  issuedAt: string,
+  pay: ReturnType<typeof billPdfFields>
+): PdfBillData {
+  return {
+    billNo: bill.billNo,
+    firmName: shop.firmName,
+    billedByName: shop.billedByName,
+    billedByEmail: shop.billedByEmail,
+    billedByAddress: shop.billedByAddress,
+    customerName: customer.name ?? 'Customer',
+    customerPhone: customer.phone,
+    customerAddress: customer.address,
+    items: bill.items.map((i) => {
+      const pack = i.productName.match(/\(([^)]+)\)\s*$/)?.[1];
+      const parts = [
+        pack ? `Pack ${pack}` : '',
+        i.colorCode ? `Color ${i.colorCode}` : '',
+      ].filter(Boolean);
+      return {
+        name: i.productName,
+        qty: i.qty,
+        rate: i.rate,
+        total: i.total,
+        subtitle: parts.length ? parts.join(' · ') : undefined,
+      };
+    }),
+    subtotal: bill.subtotal,
+    discount: bill.discount,
+    miscAmount: bill.miscAmount ?? 0,
+    miscRemark: bill.miscRemark || undefined,
+    grandTotal: bill.grandTotal,
+    date: issuedAt,
+    dueDate: issuedAt,
+    status: pay.status,
+    orderRef: bill.billNo,
+    soldBy: shop.soldBy,
+    delivery: 'Store pickup',
+    amountPaid: pay.amountPaid,
+    creditApplied: pay.creditApplied,
+    received: pay.received,
+    balanceDue: pay.balanceDue,
+  };
 }
 
 function billPdfFields(bill: {
@@ -165,53 +228,24 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
   const shop = await getShopBillingIdentity(tenantId);
   const issuedAt = new Date().toISOString();
   const pay = billPdfFields(bill);
-  const pdfBuffer = await generateBillPdf({
-    billNo: bill.billNo,
-    firmName: shop.firmName,
-    billedByName: shop.billedByName,
-    billedByEmail: shop.billedByEmail,
-    billedByAddress: shop.billedByAddress,
-    customerName: customerDoc?.name ?? input.customer.name,
-    customerEmail: undefined,
-    customerPhone: input.customer.phone ?? customerDoc?.phone ?? undefined,
-    customerAddress: input.customer.address ?? customerDoc?.address ?? undefined,
-    items: billItems.map((i) => {
-      const pack = i.productName.match(/\(([^)]+)\)\s*$/)?.[1];
-      const parts = [
-        pack ? `Pack ${pack}` : '',
-        i.colorCode ? `Color ${i.colorCode}` : '',
-      ].filter(Boolean);
-      return {
-        name: i.productName,
-        qty: i.qty,
-        rate: i.rate,
-        total: i.total,
-        subtitle: parts.length ? parts.join(' · ') : undefined,
-      };
-    }),
-    subtotal,
-    discount,
-    miscAmount,
-    miscRemark: miscRemark || undefined,
-    grandTotal,
-    date: issuedAt,
-    dueDate: issuedAt,
-    status: pay.status,
-    orderRef: bill.billNo,
-    soldBy: shop.soldBy,
-    delivery: 'Store pickup',
-    amountPaid: pay.amountPaid,
-    creditApplied: pay.creditApplied,
-    received: pay.received,
-    balanceDue: pay.balanceDue,
-  });
+  const pdfData = buildBillPdfData(
+    bill,
+    shop,
+    {
+      name: customerDoc?.name ?? input.customer.name,
+      phone: input.customer.phone ?? customerDoc?.phone ?? undefined,
+      address: input.customer.address ?? customerDoc?.address ?? undefined,
+    },
+    issuedAt,
+    pay
+  );
 
   const pdfKey = buildPdfKey(String(tenantId), 'bill', bill.billNo);
-  await savePdfByKey(pdfKey, pdfBuffer);
   bill.pdfUrl = pdfKey;
   await bill.save();
+  await queueBillPdfJob(String(tenantId), String(bill._id), bill.billNo, pdfData, pdfKey);
 
-  return { bill, cashMemo: null, pdfBuffer, creditApplied };
+  return { bill, cashMemo: null, pdfBuffer: null, creditApplied };
 }
 
 export async function listBillingProducts(
@@ -253,54 +287,15 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
   const createdAt =
     (bill as { createdAt?: Date }).createdAt?.toISOString?.() ?? new Date().toISOString();
   const pay = billPdfFields(bill);
+  const pdfData = buildBillPdfData(bill, shop, customer ?? {}, createdAt, pay);
 
-  const buffer = await generateBillPdf({
-    billNo: bill.billNo,
-    firmName: shop.firmName,
-    billedByName: shop.billedByName,
-    billedByEmail: shop.billedByEmail,
-    billedByAddress: shop.billedByAddress,
-    customerName: customer?.name ?? 'Customer',
-    customerPhone: customer?.phone,
-    customerAddress: customer?.address,
-    items: bill.items.map((i) => {
-      const pack = i.productName.match(/\(([^)]+)\)\s*$/)?.[1];
-      const parts = [
-        pack ? `Pack ${pack}` : '',
-        i.colorCode ? `Color ${i.colorCode}` : '',
-      ].filter(Boolean);
-      return {
-        name: i.productName,
-        qty: i.qty,
-        rate: i.rate,
-        total: i.total,
-        subtitle: parts.length ? parts.join(' · ') : undefined,
-      };
-    }),
-    subtotal: bill.subtotal,
-    discount: bill.discount,
-    miscAmount: bill.miscAmount ?? 0,
-    miscRemark: bill.miscRemark || undefined,
-    grandTotal: bill.grandTotal,
-    date: createdAt,
-    dueDate: createdAt,
-    status: pay.status,
-    orderRef: bill.billNo,
-    soldBy: shop.soldBy,
-    delivery: 'Store pickup',
-    amountPaid: pay.amountPaid,
-    creditApplied: pay.creditApplied,
-    received: pay.received,
-    balanceDue: pay.balanceDue,
-  });
-
-  const key = bill.pdfUrl ?? buildPdfKey(String(tenantId), 'bill', bill.billNo);
-  await savePdfByKey(key, buffer);
-  if (!bill.pdfUrl) {
-    bill.pdfUrl = key;
-    await bill.save();
-  }
-  return buffer;
+  return resolveBillPdf(
+    String(tenantId),
+    String(bill._id),
+    bill.billNo,
+    pdfData,
+    bill.pdfUrl
+  );
 }
 
 export async function recordBillPayment(
