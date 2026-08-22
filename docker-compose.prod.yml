@@ -40,6 +40,9 @@ services:
       NODE_ENV: production
       PORT: 5000
       MONGODB_URI: ${MONGODB_URI:?Set MONGODB_URI}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-paint}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-paint}:${RABBITMQ_PASSWORD}@rabbitmq:5672
     ports:
       - "${API_HOST_PORT:-5001}:5000"
@@ -61,6 +64,9 @@ services:
       NODE_ENV: production
       PORT: 7690
       MONGO_URI: ${MONGODB_URI}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-paint}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       RABBITMQ_URL: amqp://${RABBITMQ_USER:-paint}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       PAINT_FRONTEND_BASE_URL: ${PAINT_FRONTEND_BASE_URL:-https://app.paintappstore.in}
     depends_on:
