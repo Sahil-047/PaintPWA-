@@ -1,18 +1,20 @@
 import amqp from 'amqplib';
 import { env } from '../../config/env.js';
+import { getRabbitMqUrl } from '../../utils/rabbitmqUrl.js';
 
 let channel: amqp.Channel | null = null;
 
 const EXCHANGE = env.RABBITMQ_EXCHANGE ?? 'paint.exchange';
 
 export async function setupRabbitMQPublisher(): Promise<void> {
-  if (!env.RABBITMQ_URL) {
+  const rabbitmqUrl = getRabbitMqUrl();
+  if (!rabbitmqUrl) {
     console.warn('RABBITMQ_URL not set — PDF jobs will run synchronously');
     return;
   }
 
   try {
-    const connection = await amqp.connect(env.RABBITMQ_URL);
+    const connection = await amqp.connect(rabbitmqUrl);
     channel = await connection.createChannel();
     await channel.assertExchange(EXCHANGE, 'direct', { durable: true });
 
@@ -30,7 +32,8 @@ export async function setupRabbitMQPublisher(): Promise<void> {
 }
 
 export async function publishPdfJob(queue: string, payload: unknown): Promise<boolean> {
-  if (!env.RABBITMQ_URL || !queue) return false;
+  const rabbitmqUrl = getRabbitMqUrl();
+  if (!rabbitmqUrl || !queue) return false;
 
   if (!channel) {
     await setupRabbitMQPublisher();
