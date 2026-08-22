@@ -43,7 +43,9 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER:-paint}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-paint}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-paint.exchange}
+      BILL_PDF_QUEUE: ${BILL_PDF_QUEUE:-paint.bill.pdf.queue}
+      CASHMEMO_PDF_QUEUE: ${CASHMEMO_PDF_QUEUE:-paint.cashmemo.pdf.queue}
     ports:
       - "${API_HOST_PORT:-5001}:5000"
     depends_on:
@@ -67,7 +69,9 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: ${RABBITMQ_USER:-paint}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER:-paint}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-paint.exchange}
+      BILL_PDF_QUEUE: ${BILL_PDF_QUEUE:-paint.bill.pdf.queue}
+      CASHMEMO_PDF_QUEUE: ${CASHMEMO_PDF_QUEUE:-paint.cashmemo.pdf.queue}
       PAINT_FRONTEND_BASE_URL: ${PAINT_FRONTEND_BASE_URL:-https://app.paintappstore.in}
     depends_on:
       rabbitmq:
