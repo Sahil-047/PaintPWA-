@@ -1,3 +1,5 @@
+import { getPaintAppLogoDataUri } from './paintAppLogo';
+
 export interface PdfBillItem {
   name: string;
   qty: number;
@@ -111,7 +113,17 @@ export function numberToWordsIndian(n: number): string {
   return parts.join(' ');
 }
 
-export function normalizeBillPdfData(data: PdfBillData) {
+export type BillPdfFormat = 'standard' | 'dl';
+
+/** DL envelope strip: 3.9″ × 8.3″ (at 96 CSS px/in) */
+export const BILL_PDF_DL = {
+  widthIn: 3.9,
+  heightIn: 8.3,
+  widthPx: Math.round(3.9 * 96),
+  heightPx: Math.round(8.3 * 96),
+} as const;
+
+export function normalizeBillPdfData(data: PdfBillData, format: BillPdfFormat = 'standard') {
   const received = data.received ?? (data.amountPaid ?? 0) + (data.creditApplied ?? 0);
   const balanceDue = data.balanceDue ?? Math.max(0, Number((data.grandTotal - received).toFixed(2)));
   const showPaymentBreakdown =
@@ -120,13 +132,25 @@ export function normalizeBillPdfData(data: PdfBillData) {
   const hasDiscount = data.discount > 0;
   const hasMisc = miscAmt > 0;
   const extraRows = (hasDiscount ? 1 : 0) + (hasMisc ? 1 : 0);
-  const baseHeight = showPaymentBreakdown ? 520 : 480;
+  const isDl = format === 'dl';
+  const baseHeight = showPaymentBreakdown ? 580 : 540;
   const perItem = 28;
-  const pageHeight = Math.min(780, baseHeight + Math.max(0, data.items.length + extraRows - 1) * perItem);
+  const pageWidth = isDl ? BILL_PDF_DL.widthPx : 420;
+  const pageHeight = isDl
+    ? BILL_PDF_DL.heightPx
+    : Math.min(820, baseHeight + Math.max(0, data.items.length + extraRows - 1) * perItem);
 
   return {
-    pageWidth: 420,
+    format,
+    isDl,
+    pageWidth,
     pageHeight,
+    pageWidthCss: isDl ? `${BILL_PDF_DL.widthIn}in` : `${pageWidth}px`,
+    pageHeightCss: isDl ? `${BILL_PDF_DL.heightIn}in` : `${pageHeight}px`,
+    pdfWidth: isDl ? `${BILL_PDF_DL.widthIn}in` : pageWidth,
+    pdfHeight: isDl ? `${BILL_PDF_DL.heightIn}in` : pageHeight,
+    firmName: (data.firmName ?? data.billedByName ?? 'Shop').trim() || 'Shop',
+    logoDataUri: getPaintAppLogoDataUri(),
     formattedDate: formatDate(data.date),
     customerName: data.customerName || ' ',
     customerDetail: [data.customerPhone, data.customerAddress].filter(Boolean).join('  ·  '),

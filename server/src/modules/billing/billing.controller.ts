@@ -70,12 +70,15 @@ export async function downloadPdf(req: Request, res: Response, next: NextFunctio
   try {
     const tenantId = getTenantId(req);
     const billId = String(req.params.id);
+    const formatRaw = String(req.query.format ?? 'standard').toLowerCase();
+    const format = formatRaw === 'dl' ? 'dl' : 'standard';
     const [buffer, bill] = await Promise.all([
-      billingService.getBillPdf(tenantId, billId),
+      billingService.getBillPdf(tenantId, billId, format),
       billingService.getBill(tenantId, billId),
     ]);
+    const suffix = format === 'dl' ? '-dl' : '';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${bill.billNo}.pdf"`);
+    res.setHeader('Content-Disposition', `inline; filename="${bill.billNo}${suffix}.pdf"`);
     res.send(buffer);
   } catch (err) {
     next(err);

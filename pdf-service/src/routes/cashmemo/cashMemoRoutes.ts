@@ -6,6 +6,8 @@ import { PayloadType } from '../../util/enum/common.enum';
 
 const router = Router();
 
+router.post('/render', cashMemoController.renderCashMemoPdf);
+
 router.get(
   '/pdf/:tenantId/:memoId',
   validateRequest({ schema: downloadCashMemoPdfSchema, type: PayloadType.PARAMS }),

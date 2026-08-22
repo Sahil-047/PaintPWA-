@@ -5,23 +5,70 @@
   <title>Bill - {{customerName}}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    @page { size: {{pageWidth}}px {{pageHeight}}px; margin: 0; }
+    @page { size: {{pageWidthCss}} {{pageHeightCss}}; margin: 0; }
     body {
       font-family: Arial, Helvetica, sans-serif;
       font-size: 9px;
       color: #000;
       background: #fff;
-      width: {{pageWidth}}px;
-      min-height: {{pageHeight}}px;
-      padding: 20px 22px 18px;
+      width: {{pageWidthCss}};
+      min-height: {{pageHeightCss}};
+      padding: 16px 22px 18px;
     }
+    body.is-dl {
+      font-size: 8.5px;
+      padding: 12px 16px 12px;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #000;
+    }
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+    .brand-text { flex: 1; min-width: 0; }
+    .store-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+      line-height: 1.2;
+    }
+    .brand-sub {
+      font-size: 7px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    body.is-dl .brand-row { gap: 8px; margin-bottom: 8px; padding-bottom: 6px; }
+    body.is-dl .brand-logo { width: 36px; height: 36px; }
+    body.is-dl .store-name { font-size: 12px; }
+    body.is-dl .brand-sub { font-size: 6.5px; }
+    body.is-dl .title { font-size: 11px; margin-bottom: 8px; }
+    body.is-dl .meta-row { font-size: 9px; margin-bottom: 6px; }
+    body.is-dl .to-line, body.is-dl .to-label { font-size: 9px; }
+    body.is-dl .to-detail { font-size: 7.5px; margin-bottom: 8px; }
+    body.is-dl th, body.is-dl td { font-size: 8px; padding: 3px; }
+    body.is-dl .part-title { font-size: 8px; }
+    body.is-dl .part-sub { font-size: 7px; }
+    body.is-dl .footer { margin-top: 12px; }
+    body.is-dl .terms { max-width: 160px; font-size: 7px; }
+    body.is-dl .sign-wrap { width: 120px; }
+    body.is-dl .sign-line { width: 110px; }
+    body.is-dl .sign-space { height: 28px; }
     .title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       text-align: center;
       letter-spacing: 1.2px;
       text-decoration: underline;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
     .meta-row { text-align: right; margin-bottom: 8px; font-size: 9.5px; }
     .meta-label { font-weight: 700; }
@@ -68,7 +115,17 @@
     .sign-label { font-size: 8.5px; font-weight: 600; }
   </style>
 </head>
-<body>
+<body class="{{#if isDl}}is-dl{{/if}}">
+  <div class="brand-row">
+    {{#if logoDataUri}}
+    <img class="brand-logo" src="{{logoDataUri}}" alt="PaintApp" />
+    {{/if}}
+    <div class="brand-text">
+      <div class="store-name">{{firmName}}</div>
+      <div class="brand-sub">Powered by PaintApp</div>
+    </div>
+  </div>
+
   <div class="title">BILL / CASH MEMO</div>
 
   <div class="meta-row">

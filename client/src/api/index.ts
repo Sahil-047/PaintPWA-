@@ -235,14 +235,21 @@ export const billingApi = {
     return unwrap(res);
   },
   get: (id: string) => axiosInstance.get(`/bills/${id}`),
-  openPdf: async (id: string, fileName?: string) => {
-    const res = await axiosInstance.get(`/bills/${id}/pdf`, { responseType: 'blob' });
+  openPdf: async (
+    id: string,
+    fileName?: string,
+    format: 'standard' | 'dl' = 'standard'
+  ) => {
+    const res = await axiosInstance.get(`/bills/${id}/pdf`, {
+      responseType: 'blob',
+      params: { format },
+    });
     const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
     const win = window.open(url, '_blank');
     if (!win) {
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${fileName ?? 'invoice'}.pdf`;
+      a.download = `${fileName ?? 'invoice'}${format === 'dl' ? '-dl' : ''}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();

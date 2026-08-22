@@ -276,7 +276,11 @@ export async function getBill(tenantId: Types.ObjectId, billId: string) {
   return bill;
 }
 
-export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
+export async function getBillPdf(
+  tenantId: Types.ObjectId,
+  billId: string,
+  format: 'standard' | 'dl' = 'standard'
+) {
   const bill = await getBill(tenantId, billId);
   const customer = bill.customerId as {
     name?: string;
@@ -294,7 +298,8 @@ export async function getBillPdf(tenantId: Types.ObjectId, billId: string) {
     String(bill._id),
     bill.billNo,
     pdfData,
-    bill.pdfUrl
+    bill.pdfUrl,
+    format
   );
 }
 

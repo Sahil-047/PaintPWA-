@@ -46,11 +46,14 @@ services:
       RABBITMQ_EXCHANGE: ${RABBITMQ_EXCHANGE:-paint.exchange}
       BILL_PDF_QUEUE: ${BILL_PDF_QUEUE:-paint.bill.pdf.queue}
       CASHMEMO_PDF_QUEUE: ${CASHMEMO_PDF_QUEUE:-paint.cashmemo.pdf.queue}
+      PDF_SERVICE_URL: http://pdf-service:7690
     ports:
       - "${API_HOST_PORT:-5001}:5000"
     depends_on:
       rabbitmq:
         condition: service_healthy
+      pdf-service:
+        condition: service_started
     networks:
       - paint-net
 
@@ -76,8 +79,6 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
-      server:
-        condition: service_started
     networks:
       - paint-net
 

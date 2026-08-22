@@ -21,6 +21,7 @@ import type { Product } from '@paint-saas/shared-types';
 import { PAINT_SIZES, formatPackSizeLabel } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
 import { cn, formatCurrency } from '@/lib/utils';
+import { useBillPdfDownload } from '@/hooks/useBillPdfDownload';
 import {
   Search,
   ShoppingCart,
@@ -118,6 +119,7 @@ export default function BillingPage() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerProduct, setPickerProduct] = useState<Product | null>(null);
+  const { requestPdf, dialog: pdfFormatDialog } = useBillPdfDownload();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 350);
@@ -406,11 +408,7 @@ export default function BillingPage() {
 
       const billId = result.bill?._id;
       if (billId) {
-        try {
-          await billingApi.openPdf(billId, result.bill.billNo);
-        } catch {
-          /* non-blocking */
-        }
+        requestPdf(billId, result.bill.billNo);
       }
     } catch (err: unknown) {
       const data = (err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })
@@ -430,6 +428,7 @@ export default function BillingPage() {
 
   return (
     <div className="min-h-full bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8">
+      {pdfFormatDialog}
       <div className="relative overflow-hidden rounded-[18px] sm:rounded-[20px] bg-white border border-[#e2e8f0] shadow-[0_1px_3px_rgba(15,23,42,0.06)] mb-5 sm:mb-6">
         <div className="absolute inset-y-0 right-0 w-[55%] bg-gradient-to-l from-[#eff6ff] via-[#f0f9ff] to-transparent pointer-events-none hidden sm:block" />
         <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5 sm:gap-6 px-5 sm:px-8 lg:px-10 py-6 sm:py-8 lg:py-9">

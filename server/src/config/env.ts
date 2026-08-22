@@ -23,6 +23,9 @@ const envSchema = z.object({
   RABBITMQ_EXCHANGE: z.string().default('paint.exchange'),
   BILL_PDF_QUEUE: z.string().default('paint.bill.pdf.queue'),
   CASHMEMO_PDF_QUEUE: z.string().default('paint.cashmemo.pdf.queue'),
+  // Sync PDF render (pdf-service HTTP)
+  PDF_SERVICE_URL: z
+    .preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().url().optional()),
 });
 
 const parsed = envSchema.safeParse(process.env);

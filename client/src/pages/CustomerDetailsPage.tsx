@@ -40,6 +40,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { accountsApi, billingApi, cashmemoApi } from '@/api';
+import { useBillPdfDownload } from '@/hooks/useBillPdfDownload';
 import type { BillWithPayments, CustomerDetail, ReturnItem } from '@paint-saas/shared-types';
 import { ROUTES } from '@/config/config';
 import { cn } from '@/lib/utils';
@@ -227,7 +228,8 @@ function billStatusMeta(bill: BillWithPayments) {
   const hasReturn = (bill.returnedAmount ?? 0) > 0.001;
   const hasCredit = (bill.billCredit ?? 0) > 0.001;
   const isPaid = bill.status === 'paid' || !due;
-  const isPartial = bill.status === 'partial' || (due && (bill.amountPaid ?? 0) > 0);
+  const receivedOnBill = bill.amountPaid ?? 0;
+  const isPartial = bill.status === 'partial' || (due && receivedOnBill > 0);
 
   if (hasReturn) {
     if (due) {
@@ -284,6 +286,7 @@ export default function CustomerDetailsPage() {
   const [payBill, setPayBill] = useState<BillWithPayments | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMode, setPayMode] = useState('cash');
+  const { requestPdf, dialog: pdfFormatDialog } = useBillPdfDownload();
 
   async function reloadDetail() {
     if (!customerId) return;
@@ -341,11 +344,7 @@ export default function CustomerDetailsPage() {
       toast.success('Payment updated — bill PDF refreshed');
       setPayOpen(false);
       await reloadDetail();
-      try {
-        await billingApi.openPdf(payBill._id, payBill.billNo);
-      } catch {
-        /* non-blocking */
-      }
+      requestPdf(payBill._id, payBill.billNo);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -540,6 +539,7 @@ export default function CustomerDetailsPage() {
 
   return (
     <div className="min-h-full bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 lg:py-6">
+      {pdfFormatDialog}
       <div className="w-full max-w-[1400px] mx-auto space-y-5 lg:space-y-6">
         <header className="flex items-center gap-3">
           <button

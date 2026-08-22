@@ -28,6 +28,7 @@ import { billingApi, reportsApi } from '@/api';
 import type { Bill, Customer } from '@paint-saas/shared-types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useBillPdfDownload } from '@/hooks/useBillPdfDownload';
 
 const PAGE_SIZE = 6;
 
@@ -170,6 +171,7 @@ export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [sortBy, setSortBy] = useState<SortKey>('newest');
   const [page, setPage] = useState(1);
+  const { requestPdf, dialog: pdfFormatDialog } = useBillPdfDownload();
 
   useEffect(() => {
     let cancelled = false;
@@ -307,6 +309,7 @@ export default function ReportsPage() {
 
   return (
     <div className="min-h-full h-full flex flex-col bg-[var(--brand-space)] px-4 sm:px-6 lg:px-8 py-5 sm:py-6">
+      {pdfFormatDialog}
       <div className="w-full flex-1 flex flex-col gap-5 min-h-0">
         <header className="shrink-0">
           <h1 className="text-[28px] font-bold text-[#0f172a] tracking-tight leading-none">
@@ -452,7 +455,7 @@ export default function ReportsPage() {
                             </span>
                             <button
                               type="button"
-                              onClick={() => billingApi.openPdf(bill._id, bill.billNo)}
+                              onClick={() => requestPdf(bill._id, bill.billNo)}
                               className="w-8 h-8 rounded-lg border border-[#e2e8f0] bg-white text-[#94a3b8] hover:text-[var(--brand-primary)] hover:border-[var(--brand-secondary)] hover:bg-[var(--brand-tertiary)] inline-flex items-center justify-center transition-colors shrink-0"
                               title="Open invoice PDF"
                             >

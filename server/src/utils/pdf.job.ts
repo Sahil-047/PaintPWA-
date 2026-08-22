@@ -4,7 +4,11 @@ import type {
   PdfBillData,
   PdfCashMemoData,
 } from '../types/pdf.types.js';
-import { generateBillPdf, generateCashMemoPdf } from './pdf.generator.js';
+import {
+  renderBillPdfViaService,
+  renderCashMemoPdfViaService,
+  type BillPdfFormat,
+} from './pdf.client.js';
 import {
   isBillPdfQueueEnabled,
   isCashMemoPdfQueueEnabled,
@@ -13,7 +17,9 @@ import {
 } from './pdf.publisher.js';
 import { buildPdfKey, readPdfByKey, savePdfByKey } from './pdf.storage.js';
 
-const PDF_POLL_ATTEMPTS = 6;
+export type { BillPdfFormat };
+
+const PDF_POLL_ATTEMPTS = 8;
 const PDF_POLL_INTERVAL_MS = 500;
 
 async function waitForPdf(key: string): Promise<Buffer | null> {
@@ -72,21 +78,20 @@ export async function resolveBillPdf(
   billId: string,
   billNo: string,
   pdfData: PdfBillData,
-  pdfKey?: string | null
+  pdfKey?: string | null,
+  format: BillPdfFormat = 'standard'
 ): Promise<Buffer> {
-  const key = pdfKey ?? buildPdfKey(tenantId, 'bill', billNo);
+  // Always render through pdf-service (single source of truth for templates).
+  const buffer = await renderBillPdfViaService(pdfData, format);
 
-  const existing = await readPdfByKey(key);
-  if (existing) return existing;
-
-  if (isBillPdfQueueEnabled()) {
-    await queueBillPdfJob(tenantId, billId, billNo, pdfData, key);
-    const queued = await waitForPdf(key);
-    if (queued) return queued;
+  if (format === 'standard') {
+    const key = pdfKey ?? buildPdfKey(tenantId, 'bill', billNo);
+    void savePdfByKey(key, buffer).catch(() => undefined);
+    if (isBillPdfQueueEnabled()) {
+      void queueBillPdfJob(tenantId, billId, billNo, pdfData, key).catch(() => undefined);
+    }
   }
 
-  const buffer = await generateBillPdf(pdfData);
-  await savePdfByKey(key, buffer);
   return buffer;
 }
 
@@ -108,7 +113,7 @@ export async function resolveCashMemoPdf(
     if (queued) return queued;
   }
 
-  const buffer = await generateCashMemoPdf(pdfData);
+  const buffer = await renderCashMemoPdfViaService(pdfData);
   await savePdfByKey(key, buffer);
   return buffer;
 }
