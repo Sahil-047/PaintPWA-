@@ -232,7 +232,7 @@ export const billingApi = {
       return unwrap(res);
     }),
   create: async (data: {
-    customer: { name: string; phone?: string; address?: string; gstin?: string };
+    customer: { customerId?: string; name: string; phone?: string; address?: string; gstin?: string };
     items: Array<{ productId: string; qty: number; rate?: number; size?: string; colorCode?: string }>;
     discount?: number;
     miscAmount?: number;

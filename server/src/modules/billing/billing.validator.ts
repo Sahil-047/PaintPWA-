@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createBillSchema = z.object({
   customer: z.object({
+    customerId: z.string().optional(),
     name: z.string().min(1),
     phone: z.string().optional(),
     address: z.string().optional(),

@@ -59,7 +59,7 @@ interface InvoiceCheckoutDialogProps {
   onMiscAmountChange: (amount: string) => void;
   onMiscRemarkChange: (remark: string) => void;
   onSubmit: (payload: {
-    customer: { name: string; phone?: string; address?: string };
+    customer: { customerId?: string; name: string; phone?: string; address?: string };
     amountPaid: number;
     paymentMode: string;
   }) => Promise<void>;
@@ -279,6 +279,8 @@ export default function InvoiceCheckoutDialog({
     }
     await onSubmit({
       customer: {
+        // Send the ID for existing customers so the server never re-creates them.
+        customerId: selectedCustomerId !== 'new' ? selectedCustomerId : undefined,
         name: fullName,
         phone: phone || undefined,
         address: address || undefined,

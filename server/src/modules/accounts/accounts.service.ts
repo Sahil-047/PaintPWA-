@@ -8,15 +8,68 @@ import { AccountModel, type IAccount } from './accounts.model.js';
 import { CustomerModel } from './customer.model.js';
 import type { CreateCustomerInput, UpdateCustomerInput } from './accounts.validator.js';
 
+/** Digits-only form of a phone number so "+91 98765-43210" matches "9876543210". */
+export function normalizePhone(phone?: string | null): string {
+  return (phone ?? '').replace(/\D/g, '');
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Resolve the customer for a bill without ever duplicating an existing one.
+ * Match order: explicit customerId → phone (format-insensitive) → exact name
+ * (only among phone-less customers). Creates a new customer only when nothing
+ * matches; phone is stored digits-only so future lookups stay consistent.
+ */
 export async function upsertCustomer(
   tenantId: Types.ObjectId,
-  data: { name: string; phone?: string; address?: string; gstin?: string }
+  data: { customerId?: string; name: string; phone?: string; address?: string; gstin?: string }
 ) {
-  if (data.phone) {
-    const existing = await CustomerModel.findOne({ tenantId, phone: data.phone });
+  const name = data.name.trim();
+  const digits = normalizePhone(data.phone);
+  const address = data.address?.trim();
+
+  if (data.customerId && Types.ObjectId.isValid(data.customerId)) {
+    const byId = await CustomerModel.findOne({ _id: data.customerId, tenantId });
+    if (byId) {
+      // Fill in contact info the record is missing; never overwrite existing data here.
+      let changed = false;
+      if (digits && !normalizePhone(byId.phone)) {
+        byId.phone = digits;
+        changed = true;
+      }
+      if (address && !byId.address) {
+        byId.address = address;
+        changed = true;
+      }
+      if (changed) await byId.save();
+      return byId;
+    }
+  }
+
+  if (digits) {
+    // Legacy records may store formatted phones ("+91 98…"), so compare normalized.
+    const candidates = await CustomerModel.find({ tenantId, phone: { $nin: ['', null] } });
+    const existing = candidates.find((c) => normalizePhone(c.phone) === digits);
+    if (existing) return existing;
+  } else {
+    const existing = await CustomerModel.findOne({
+      tenantId,
+      $or: [{ phone: '' }, { phone: { $exists: false } }],
+      name: new RegExp(`^${escapeRegex(name)}$`, 'i'),
+    });
     if (existing) return existing;
   }
-  return CustomerModel.create({ tenantId, ...data });
+
+  return CustomerModel.create({
+    tenantId,
+    name,
+    phone: digits,
+    address: address ?? '',
+    gstin: data.gstin,
+  });
 }
 
 export async function recalcDue(
@@ -192,11 +245,13 @@ export async function listCustomers(tenantId: Types.ObjectId) {
 }
 
 export async function createCustomer(tenantId: Types.ObjectId, input: CreateCustomerInput) {
-  if (input.phone) {
-    const existing = await CustomerModel.findOne({ tenantId, phone: input.phone });
+  const digits = normalizePhone(input.phone);
+  if (digits) {
+    const candidates = await CustomerModel.find({ tenantId, phone: { $nin: ['', null] } });
+    const existing = candidates.find((c) => normalizePhone(c.phone) === digits);
     if (existing) throw new AppError('Customer with this phone already exists', 409);
   }
-  return CustomerModel.create({ tenantId, ...input });
+  return CustomerModel.create({ tenantId, ...input, phone: digits });
 }
 
 export async function updateCustomer(
@@ -204,9 +259,21 @@ export async function updateCustomer(
   customerId: string,
   input: UpdateCustomerInput
 ) {
+  const patch: UpdateCustomerInput = { ...input };
+  if (patch.phone !== undefined) {
+    const digits = normalizePhone(patch.phone);
+    if (digits) {
+      const candidates = await CustomerModel.find({ tenantId, phone: { $nin: ['', null] } });
+      const clash = candidates.find(
+        (c) => String(c._id) !== customerId && normalizePhone(c.phone) === digits
+      );
+      if (clash) throw new AppError('Another customer already uses this phone', 409);
+    }
+    patch.phone = digits;
+  }
   const customer = await CustomerModel.findOneAndUpdate(
     { _id: customerId, tenantId },
-    { $set: input },
+    { $set: patch },
     { new: true, runValidators: true }
   );
   if (!customer) throw new AppError('Customer not found', 404);

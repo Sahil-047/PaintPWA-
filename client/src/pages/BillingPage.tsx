@@ -341,7 +341,7 @@ export default function BillingPage() {
   }
 
   async function handleCheckout(payload: {
-    customer: { name: string; phone?: string; address?: string };
+    customer: { customerId?: string; name: string; phone?: string; address?: string };
     amountPaid: number;
     paymentMode: string;
   }) {
