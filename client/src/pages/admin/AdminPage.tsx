@@ -18,16 +18,24 @@ import { TenantDatabase, TenantDetailPanel } from './TenantDatabase';
 
 function SkeletonRows() {
   return (
-    <div className="mx-8 mb-8 rounded-lg border border-[rgba(55,53,47,0.09)] bg-white overflow-hidden">
+    <div className="mx-4 sm:mx-6 lg:mx-8 mb-8 rounded-[20px] border border-[#e8eef5] bg-white overflow-hidden">
       {Array.from({ length: 5 }).map((_, i) => (
         <div
           key={i}
-          className="h-[56px] border-b border-[rgba(55,53,47,0.06)] last:border-0 animate-pulse bg-gradient-to-r from-[#FAFAF8] via-[#F1F1EF] to-[#FAFAF8] bg-[length:200%_100%]"
+          className="h-[60px] border-b border-[#f1f5f9] last:border-0 animate-pulse bg-gradient-to-r from-[var(--brand-space)] via-[var(--brand-tertiary)] to-[var(--brand-space)] bg-[length:200%_100%]"
         />
       ))}
     </div>
   );
 }
+
+const EMPTY_COUNTS: Record<AdminView, number> = {
+  pending: 0,
+  approved: 0,
+  rejected: 0,
+  deactivated: 0,
+  all: 0,
+};
 
 export default function AdminPage() {
   const [view, setView] = useState<AdminView>('pending');
@@ -38,31 +46,31 @@ export default function AdminPage() {
     total: 0,
     pages: 1,
   });
-  const [counts, setCounts] = useState<Record<AdminView, number>>({
-    pending: 0,
-    approved: 0,
-    rejected: 0,
-    all: 0,
-  });
+  const [counts, setCounts] = useState<Record<AdminView, number>>(EMPTY_COUNTS);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<TenantRegistration | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<TenantRegistration | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [deactivateTarget, setDeactivateTarget] = useState<TenantRegistration | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TenantRegistration | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
 
   const loadCounts = useCallback(async () => {
     try {
-      const [pending, approved, rejected, all] = await Promise.all([
+      const [pending, approved, rejected, deactivated, all] = await Promise.all([
         adminApi.listTenants({ status: 'pending', page: 1, limit: 1 }),
         adminApi.listTenants({ status: 'approved', page: 1, limit: 1 }),
         adminApi.listTenants({ status: 'rejected', page: 1, limit: 1 }),
+        adminApi.listTenants({ status: 'deactivated', page: 1, limit: 1 }),
         adminApi.listTenants({ status: 'all', page: 1, limit: 1 }),
       ]);
       setCounts({
         pending: pending.pagination.total,
         approved: approved.pagination.total,
         rejected: rejected.pagination.total,
+        deactivated: deactivated.pagination.total,
         all: all.pagination.total,
       });
     } catch {
@@ -154,6 +162,65 @@ export default function AdminPage() {
     }
   }
 
+  async function handleDeactivate() {
+    if (!deactivateTarget) return;
+    setActingId(deactivateTarget._id);
+    try {
+      await adminApi.deactivateTenant(deactivateTarget._id);
+      toast.success('Subscription deactivated');
+      setDeactivateTarget(null);
+      setSelected(null);
+      await refreshAll();
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Could not deactivate'
+      );
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function handleReactivate(id: string) {
+    setActingId(id);
+    try {
+      await adminApi.reactivateTenant(id);
+      toast.success('Subscription reactivated');
+      await refreshAll();
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Could not reactivate'
+      );
+    } finally {
+      setActingId(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    if (deleteConfirm.trim() !== deleteTarget.slug) {
+      toast.error('Type the shop slug to confirm deletion');
+      return;
+    }
+    setActingId(deleteTarget._id);
+    try {
+      await adminApi.deleteTenant(deleteTarget._id);
+      toast.success(`Deleted ${deleteTarget.name}`);
+      setDeleteTarget(null);
+      setDeleteConfirm('');
+      setSelected(null);
+      await refreshAll();
+    } catch (err: unknown) {
+      toast.error(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Could not delete tenant'
+      );
+    } finally {
+      setActingId(null);
+    }
+  }
+
   function openReject(tenant: TenantRegistration) {
     setRejectTarget(tenant);
     setRejectReason('');
@@ -165,8 +232,12 @@ export default function AdminPage() {
       description: 'New shop sign-ups will appear here for your review.',
     },
     approved: {
-      title: 'No approved shops',
-      description: 'Approved tenants will show up in this view.',
+      title: 'No active shops',
+      description: 'Approved tenants with live subscriptions show up here.',
+    },
+    deactivated: {
+      title: 'No deactivated shops',
+      description: 'Suspended subscriptions will be listed here.',
     },
     rejected: {
       title: 'No rejected registrations',
@@ -178,6 +249,19 @@ export default function AdminPage() {
     },
   };
 
+  const searchInput = (
+    <div className="relative w-full sm:w-[240px]">
+      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/35" />
+      <input
+        type="search"
+        placeholder="Search shops…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="w-full h-9 pl-9 pr-3 text-[13px] rounded-[12px] border border-[#e2e8f0] bg-white placeholder:text-black/30 focus:outline-none focus:ring-[3px] focus:ring-[var(--brand-primary)]/15 focus:border-[var(--brand-primary)]"
+      />
+    </div>
+  );
+
   return (
     <>
       <AdminShell
@@ -186,24 +270,12 @@ export default function AdminPage() {
         counts={counts}
         loading={loading}
         onRefresh={refreshAll}
-        headerActions={
-          <div className="relative w-[220px] hidden sm:block">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9B9A97]" />
-            <input
-              type="search"
-              placeholder="Search shops…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-8 pl-8 pr-3 text-[13px] rounded-md border border-[rgba(55,53,47,0.16)] bg-white placeholder:text-[#C4C4C2] focus:outline-none focus:ring-2 focus:ring-[#2383E2]/30 focus:border-[#2383E2]/50"
-            />
-          </div>
-        }
+        headerActions={<div className="hidden sm:block">{searchInput}</div>}
       >
-        {/* Stats row */}
-        <div className="px-8 pb-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <AdminStatCard label="Pending review" value={counts.pending} />
+        <div className="px-4 sm:px-6 lg:px-8 pt-8 sm:pt-10 pb-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <AdminStatCard label="Pending review" value={counts.pending} accent />
           <AdminStatCard label="Active shops" value={counts.approved} />
-          <AdminStatCard label="Rejected" value={counts.rejected} />
+          <AdminStatCard label="Deactivated" value={counts.deactivated} />
           <AdminStatCard
             label="In this view"
             value={loading ? '—' : filtered.length}
@@ -211,26 +283,14 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* Mobile search */}
-        <div className="px-8 pb-4 sm:hidden">
-          <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9B9A97]" />
-            <input
-              type="search"
-              placeholder="Search shops…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-8 pr-3 text-[13px] rounded-md border border-[rgba(55,53,47,0.16)] bg-white"
-            />
-          </div>
-        </div>
+        <div className="px-4 sm:px-6 lg:px-8 pb-4 sm:hidden">{searchInput}</div>
 
         <div className="flex min-h-0 flex-1">
           <div className="flex-1 min-w-0 pb-8">
             {loading ? (
               <SkeletonRows />
             ) : filtered.length === 0 ? (
-              <div className="mx-8 rounded-lg border border-[rgba(55,53,47,0.09)] bg-white">
+              <div className="mx-4 sm:mx-6 lg:mx-8 rounded-[20px] border border-[#e8eef5] bg-white">
                 <AdminEmptyState {...emptyCopy[view]} />
               </div>
             ) : (
@@ -241,19 +301,31 @@ export default function AdminPage() {
                 actingId={actingId}
                 onApprove={handleApprove}
                 onReject={openReject}
+                onDeactivate={setDeactivateTarget}
+                onReactivate={handleReactivate}
+                onDelete={(t) => {
+                  setDeleteTarget(t);
+                  setDeleteConfirm('');
+                }}
               />
             )}
           </div>
 
           {selected && !loading && filtered.some((t) => t._id === selected._id) && (
             <div className="hidden lg:block shrink-0">
-            <TenantDetailPanel
-              tenant={selected}
-              onClose={() => setSelected(null)}
-              actingId={actingId}
-              onApprove={handleApprove}
-              onReject={openReject}
-            />
+              <TenantDetailPanel
+                tenant={selected}
+                onClose={() => setSelected(null)}
+                actingId={actingId}
+                onApprove={handleApprove}
+                onReject={openReject}
+                onDeactivate={setDeactivateTarget}
+                onReactivate={handleReactivate}
+                onDelete={(t) => {
+                  setDeleteTarget(t);
+                  setDeleteConfirm('');
+                }}
+              />
             </div>
           )}
         </div>
@@ -263,40 +335,125 @@ export default function AdminPage() {
         open={!!rejectTarget}
         onOpenChange={(open: boolean) => !open && setRejectTarget(null)}
       >
-        <DialogContent className="sm:max-w-md border-[rgba(55,53,47,0.09)] shadow-xl">
+        <DialogContent className="sm:max-w-md rounded-[20px] border-[#e8eef5] shadow-xl">
           <DialogHeader className="p-0">
-            <DialogTitle className="text-[#37352F] font-semibold tracking-[-0.02em]">
+            <DialogTitle className="text-[var(--brand-text)] font-bold tracking-tight">
               Reject registration
             </DialogTitle>
           </DialogHeader>
-          <p className="text-[14px] text-[#6B6B6B] leading-relaxed">
-            <span className="font-medium text-[#37352F]">{rejectTarget?.name}</span> will not be
-            able to use the platform. You can add a short note for the owner.
+          <p className="text-[14px] text-black/55 leading-relaxed">
+            <span className="font-semibold text-[var(--brand-text)]">{rejectTarget?.name}</span>{' '}
+            will not be able to use the platform. You can add a short note for the owner.
           </p>
           <Input
             type="text"
-            placeholder="Optional reason (shown when they try to sign in)"
+            placeholder="Optional reason"
             value={rejectReason}
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setRejectReason(e.target.value)
-            }
-            className="border-[rgba(55,53,47,0.16)] focus-visible:ring-[#2383E2]/30"
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setRejectReason(e.target.value)}
+            className="rounded-xl border-[#e2e8f0] focus-visible:ring-[var(--brand-primary)]/20"
           />
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setRejectTarget(null)}
-              className="border-[rgba(55,53,47,0.16)]"
-            >
+            <Button variant="outline" onClick={() => setRejectTarget(null)} className="rounded-xl">
               Cancel
             </Button>
             <Button
               variant="destructive"
               onClick={handleReject}
               disabled={!!actingId}
-              className="bg-[#9F3A2F] hover:bg-[#8A3229]"
+              className="rounded-xl bg-red-600 hover:bg-red-700"
             >
               Reject shop
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deactivateTarget}
+        onOpenChange={(open: boolean) => !open && setDeactivateTarget(null)}
+      >
+        <DialogContent className="sm:max-w-md rounded-[20px] border-[#e8eef5] shadow-xl">
+          <DialogHeader className="p-0">
+            <DialogTitle className="text-[var(--brand-text)] font-bold tracking-tight">
+              Deactivate subscription
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[14px] text-black/55 leading-relaxed">
+            <span className="font-semibold text-[var(--brand-text)]">
+              {deactivateTarget?.name}
+            </span>{' '}
+            will lose access immediately. You can reactivate later without deleting data.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDeactivateTarget(null)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeactivate}
+              disabled={!!actingId}
+              className="rounded-xl bg-slate-800 hover:bg-slate-900 text-white"
+            >
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open: boolean) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteConfirm('');
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md rounded-[20px] border-[#e8eef5] shadow-xl">
+          <DialogHeader className="p-0">
+            <DialogTitle className="text-[var(--brand-text)] font-bold tracking-tight">
+              Delete tenant
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-[14px] text-black/55 leading-relaxed">
+            Permanently remove{' '}
+            <span className="font-semibold text-[var(--brand-text)]">{deleteTarget?.name}</span>{' '}
+            and its login users. This cannot be undone.
+          </p>
+          <div className="space-y-2">
+            <p className="text-[12px] text-black/45">
+              Type <span className="font-mono font-semibold text-[var(--brand-text)]">{deleteTarget?.slug}</span> to
+              confirm
+            </p>
+            <Input
+              type="text"
+              placeholder={deleteTarget?.slug}
+              value={deleteConfirm}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setDeleteConfirm(e.target.value)}
+              className="rounded-xl border-[#e2e8f0] focus-visible:ring-red-500/20 font-mono"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirm('');
+              }}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={!!actingId || deleteConfirm.trim() !== deleteTarget?.slug}
+              className="rounded-xl bg-red-600 hover:bg-red-700"
+            >
+              Delete forever
             </Button>
           </DialogFooter>
         </DialogContent>

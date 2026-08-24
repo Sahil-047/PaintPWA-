@@ -1,6 +1,6 @@
 // Auth & Tenant
 export type TenantPlan = 'free' | 'pro';
-export type TenantStatus = 'pending' | 'approved' | 'rejected';
+export type TenantStatus = 'pending' | 'approved' | 'rejected' | 'deactivated';
 export type UserRole = 'admin' | 'staff' | 'superadmin';
 
 export interface Tenant {

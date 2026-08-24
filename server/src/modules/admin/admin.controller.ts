@@ -31,3 +31,30 @@ export async function reject(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function deactivate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tenant = await adminService.deactivateTenant(String(req.params.id));
+    sendSuccess(res, tenant);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function reactivate(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tenant = await adminService.reactivateTenant(String(req.params.id));
+    sendSuccess(res, tenant);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function remove(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await adminService.deleteTenant(String(req.params.id));
+    sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+}

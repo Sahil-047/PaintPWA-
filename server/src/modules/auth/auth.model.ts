@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-export type TenantStatus = 'pending' | 'approved' | 'rejected';
+export type TenantStatus = 'pending' | 'approved' | 'rejected' | 'deactivated';
 export type UserRole = 'admin' | 'staff' | 'superadmin';
 
 export interface ITenant extends Document {
@@ -24,7 +24,7 @@ const tenantSchema = new Schema<ITenant>(
     plan: { type: String, enum: ['free', 'pro'], default: 'free' },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
+      enum: ['pending', 'approved', 'rejected', 'deactivated'],
       default: 'pending',
     },
     rejectionReason: { type: String, trim: true },

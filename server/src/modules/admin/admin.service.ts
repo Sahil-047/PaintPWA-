@@ -161,6 +161,50 @@ export async function rejectTenant(tenantId: string, reason?: string) {
   return serializeTenantRow(tenant._id as Types.ObjectId);
 }
 
+/** Suspend an approved shop — blocks login and API access. */
+export async function deactivateTenant(tenantId: string) {
+  const tenant = await TenantModel.findById(tenantId);
+  if (!tenant) throw new AppError('Tenant not found', 404);
+  if (tenant.status !== 'approved') {
+    throw new AppError('Only approved shops can be deactivated', 400);
+  }
+
+  tenant.status = 'deactivated';
+  await tenant.save();
+
+  return serializeTenantRow(tenant._id as Types.ObjectId);
+}
+
+/** Restore a deactivated shop to approved. */
+export async function reactivateTenant(tenantId: string) {
+  const tenant = await TenantModel.findById(tenantId);
+  if (!tenant) throw new AppError('Tenant not found', 404);
+  if (tenant.status !== 'deactivated') {
+    throw new AppError('Only deactivated shops can be reactivated', 400);
+  }
+
+  tenant.status = 'approved';
+  tenant.rejectionReason = undefined;
+  await tenant.save();
+
+  return serializeTenantRow(tenant._id as Types.ObjectId);
+}
+
+/**
+ * Permanently remove the tenant workspace and its users.
+ * Operational data (bills, inventory) keyed by tenantId is left orphaned.
+ */
+export async function deleteTenant(tenantId: string) {
+  const tenant = await TenantModel.findById(tenantId);
+  if (!tenant) throw new AppError('Tenant not found', 404);
+
+  const id = tenant._id as Types.ObjectId;
+  await UserModel.deleteMany({ tenantId: id });
+  await TenantModel.deleteOne({ _id: id });
+
+  return { deleted: true as const, id: String(id), slug: tenant.slug, name: tenant.name };
+}
+
 async function serializeTenantRow(tenantId: Types.ObjectId): Promise<TenantRegistrationRow> {
   const tenant = await TenantModel.findById(tenantId).lean();
   if (!tenant) throw new AppError('Tenant not found', 404);

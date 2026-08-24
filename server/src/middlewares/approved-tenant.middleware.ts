@@ -38,5 +38,15 @@ export async function approvedTenantMiddleware(
     return;
   }
 
+  if (tenant.status === 'deactivated') {
+    next(
+      new AppError(
+        'This shop subscription is deactivated. Contact support to restore access.',
+        403
+      )
+    );
+    return;
+  }
+
   next();
 }

@@ -116,7 +116,7 @@ export const authApi = {
 
 export const adminApi = {
   listTenants: async (params?: {
-    status?: 'pending' | 'approved' | 'rejected' | 'all';
+    status?: 'pending' | 'approved' | 'rejected' | 'deactivated' | 'all';
     page?: number;
     limit?: number;
   }) => {
@@ -139,6 +139,24 @@ export const adminApi = {
       `/admin/tenants/${id}/reject`,
       { reason }
     );
+    return unwrap(res);
+  },
+  deactivateTenant: async (id: string) => {
+    const res = await axiosInstance.patch<ApiResponse<TenantRegistration>>(
+      `/admin/tenants/${id}/deactivate`
+    );
+    return unwrap(res);
+  },
+  reactivateTenant: async (id: string) => {
+    const res = await axiosInstance.patch<ApiResponse<TenantRegistration>>(
+      `/admin/tenants/${id}/reactivate`
+    );
+    return unwrap(res);
+  },
+  deleteTenant: async (id: string) => {
+    const res = await axiosInstance.delete<
+      ApiResponse<{ deleted: true; id: string; slug: string; name: string }>
+    >(`/admin/tenants/${id}`);
     return unwrap(res);
   },
 };

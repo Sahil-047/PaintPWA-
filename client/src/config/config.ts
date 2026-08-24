@@ -1,5 +1,8 @@
 export const APP_NAME = 'paintapp';
 
+/** Public host shown in admin / signup URL previews */
+export const APP_PUBLIC_HOST = 'app.paintappstore.in';
+
 export const ROUTES = {
   HOME: '/',
   SIGNUP: '/signup',
@@ -25,5 +28,9 @@ export function accountDetailPath(customerId: string) {
 
 export function painterDetailPath(painterId: string) {
   return `/painters/${painterId}`;
+}
+
+export function tenantUrlPreview(slug: string) {
+  return `${APP_PUBLIC_HOST}/${slug}`;
 }
 

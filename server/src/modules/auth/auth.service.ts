@@ -112,6 +112,13 @@ export async function loginUser(input: LoginInput) {
     );
   }
 
+  if (tenant.status === 'deactivated') {
+    throw new AppError(
+      'This shop subscription is deactivated. Contact support to restore access.',
+      403
+    );
+  }
+
   const token = signTenantToken(user._id as Types.ObjectId, tenant._id as Types.ObjectId);
 
   return {
