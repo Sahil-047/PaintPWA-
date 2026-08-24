@@ -285,51 +285,59 @@ export default function AdminPage() {
 
         <div className="px-4 sm:px-6 lg:px-8 pb-4 sm:hidden">{searchInput}</div>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="flex-1 min-w-0 pb-8">
-            {loading ? (
-              <SkeletonRows />
-            ) : filtered.length === 0 ? (
-              <div className="mx-4 sm:mx-6 lg:mx-8 rounded-[20px] border border-[#e8eef5] bg-white">
-                <AdminEmptyState {...emptyCopy[view]} />
-              </div>
-            ) : (
-              <TenantDatabase
-                tenants={filtered}
-                selectedId={selected?._id ?? null}
-                onSelect={setSelected}
-                actingId={actingId}
-                onApprove={handleApprove}
-                onReject={openReject}
-                onDeactivate={setDeactivateTarget}
-                onReactivate={handleReactivate}
-                onDelete={(t) => {
-                  setDeleteTarget(t);
-                  setDeleteConfirm('');
-                }}
-              />
-            )}
-          </div>
-
-          {selected && !loading && filtered.some((t) => t._id === selected._id) && (
-            <div className="hidden lg:block shrink-0">
-              <TenantDetailPanel
-                tenant={selected}
-                onClose={() => setSelected(null)}
-                actingId={actingId}
-                onApprove={handleApprove}
-                onReject={openReject}
-                onDeactivate={setDeactivateTarget}
-                onReactivate={handleReactivate}
-                onDelete={(t) => {
-                  setDeleteTarget(t);
-                  setDeleteConfirm('');
-                }}
-              />
+        <div className="pb-8">
+          {loading ? (
+            <SkeletonRows />
+          ) : filtered.length === 0 ? (
+            <div className="mx-4 sm:mx-6 lg:mx-8 rounded-[20px] border border-[#e8eef5] bg-white">
+              <AdminEmptyState {...emptyCopy[view]} />
             </div>
+          ) : (
+            <TenantDatabase
+              tenants={filtered}
+              selectedId={selected?._id ?? null}
+              onSelect={setSelected}
+              actingId={actingId}
+              onApprove={handleApprove}
+              onReject={openReject}
+              onDeactivate={setDeactivateTarget}
+              onReactivate={handleReactivate}
+              onDelete={(t) => {
+                setDeleteTarget(t);
+                setDeleteConfirm('');
+              }}
+            />
           )}
         </div>
       </AdminShell>
+
+      <TenantDetailPanel
+        open={!!selected && !loading}
+        tenant={selected}
+        onClose={() => setSelected(null)}
+        actingId={actingId}
+        onApprove={async (id) => {
+          await handleApprove(id);
+          setSelected(null);
+        }}
+        onReject={(t) => {
+          setSelected(null);
+          openReject(t);
+        }}
+        onDeactivate={(t) => {
+          setSelected(null);
+          setDeactivateTarget(t);
+        }}
+        onReactivate={async (id) => {
+          await handleReactivate(id);
+          setSelected(null);
+        }}
+        onDelete={(t) => {
+          setSelected(null);
+          setDeleteTarget(t);
+          setDeleteConfirm('');
+        }}
+      />
 
       <Dialog
         open={!!rejectTarget}

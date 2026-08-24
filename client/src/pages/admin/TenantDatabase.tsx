@@ -1,22 +1,41 @@
 import {
+  ArrowPathIcon,
   BuildingOffice2Icon,
+  CalendarDaysIcon,
   CheckIcon,
+  ClipboardDocumentIcon,
+  CreditCardIcon,
   EnvelopeIcon,
+  LinkIcon,
   NoSymbolIcon,
   TrashIcon,
   UserIcon,
   XMarkIcon,
-  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 import type { TenantRegistration, TenantStatus } from '@paint-saas/shared-types';
 import { APP_PUBLIC_HOST } from '@/config/config';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 const STATUS_STYLES: Record<TenantStatus, string> = {
   pending: 'bg-amber-50 text-amber-700 border-amber-200/80',
   approved: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
   rejected: 'bg-red-50 text-red-700 border-red-200/80',
   deactivated: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
+const STATUS_LABEL: Record<TenantStatus, string> = {
+  pending: 'Pending review',
+  approved: 'Active',
+  rejected: 'Rejected',
+  deactivated: 'Deactivated',
 };
 
 function formatDate(iso: string) {
@@ -27,6 +46,16 @@ function formatDate(iso: string) {
     hour: 'numeric',
     minute: '2-digit',
   }).format(new Date(iso));
+}
+
+function shopInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 interface TenantDatabaseProps {
@@ -99,11 +128,11 @@ export function TenantDatabase({
                 <div>
                   <span
                     className={cn(
-                      'inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-md border capitalize',
+                      'inline-flex text-[11px] font-semibold px-2 py-0.5 rounded-md border',
                       STATUS_STYLES[t.status]
                     )}
                   >
-                    {t.status}
+                    {STATUS_LABEL[t.status]}
                   </span>
                 </div>
 
@@ -215,6 +244,7 @@ function ActionChip({
 
 interface TenantDetailPanelProps {
   tenant: TenantRegistration | null;
+  open: boolean;
   onClose: () => void;
   actingId: string | null;
   onApprove: (id: string) => void;
@@ -226,6 +256,7 @@ interface TenantDetailPanelProps {
 
 export function TenantDetailPanel({
   tenant,
+  open,
   onClose,
   actingId,
   onApprove,
@@ -237,151 +268,198 @@ export function TenantDetailPanel({
   if (!tenant) return null;
 
   const busy = actingId === tenant._id;
+  const workspaceUrl = `${APP_PUBLIC_HOST}/${tenant.slug}`;
+
+  async function copyUrl() {
+    try {
+      await navigator.clipboard.writeText(`https://${workspaceUrl}`);
+      toast.success('Workspace URL copied');
+    } catch {
+      toast.error('Could not copy URL');
+    }
+  }
 
   return (
-    <aside className="w-[340px] shrink-0 border-l border-[#e8eef5] bg-white flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#eef2f7]">
-        <p className="text-[12px] font-semibold uppercase tracking-wide text-black/40">Details</p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-8 h-8 rounded-[10px] flex items-center justify-center text-black/40 hover:bg-[var(--brand-tertiary)] hover:text-[var(--brand-primary)]"
-        >
-          <XMarkIcon className="w-4 h-4" />
-        </button>
-      </div>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent
+        showCloseButton
+        className="sm:max-w-lg max-h-[min(90vh,720px)] overflow-y-auto rounded-[20px] border-[#e8eef5] p-0 gap-0 shadow-2xl"
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{tenant.name}</DialogTitle>
+          <DialogDescription>Shop workspace details and subscription actions</DialogDescription>
+        </DialogHeader>
 
-      <div className="flex-1 overflow-auto p-5 space-y-5">
-        <div>
-          <div className="w-12 h-12 rounded-[14px] bg-[var(--brand-tertiary)] flex items-center justify-center">
-            <BuildingOffice2Icon className="w-6 h-6 text-[var(--brand-primary)]" />
+        {/* Identity */}
+        <div className="px-6 pt-6 pb-5 border-b border-[#f1f5f9]">
+          <div className="flex items-start gap-3.5 pr-8">
+            <div className="w-14 h-14 rounded-[16px] bg-[var(--brand-primary)] text-white flex items-center justify-center text-[16px] font-bold shrink-0 shadow-[0_8px_20px_rgba(19,88,250,0.25)]">
+              {shopInitials(tenant.name)}
+            </div>
+            <div className="min-w-0 flex-1 pt-0.5">
+              <h2 className="text-[18px] font-bold text-[var(--brand-text)] tracking-tight leading-snug">
+                {tenant.name}
+              </h2>
+              <span
+                className={cn(
+                  'inline-flex mt-2 text-[11px] font-semibold px-2 py-0.5 rounded-md border',
+                  STATUS_STYLES[tenant.status]
+                )}
+              >
+                {STATUS_LABEL[tenant.status]}
+              </span>
+            </div>
           </div>
-          <h2 className="text-[18px] font-bold text-[var(--brand-text)] mt-3 tracking-tight">
-            {tenant.name}
-          </h2>
-          <p className="text-[13px] text-black/40 mt-0.5">
-            {APP_PUBLIC_HOST}/{tenant.slug}
-          </p>
-          <span
-            className={cn(
-              'inline-flex mt-3 text-[11px] font-semibold px-2 py-0.5 rounded-md border capitalize',
-              STATUS_STYLES[tenant.status]
-            )}
+
+          <button
+            type="button"
+            onClick={copyUrl}
+            className="mt-4 w-full flex items-center gap-2.5 rounded-[14px] border border-[#e8eef5] bg-[var(--brand-tertiary)]/70 px-3 py-2.5 text-left hover:border-[var(--brand-secondary)] transition-colors group"
+            title="Copy workspace URL"
           >
-            {tenant.status}
-          </span>
+            <LinkIcon className="w-4 h-4 text-[var(--brand-primary)] shrink-0" />
+            <span className="flex-1 min-w-0">
+              <span className="block text-[10px] font-semibold uppercase tracking-wide text-black/35">
+                Workspace URL
+              </span>
+              <span className="block text-[12px] font-medium text-[var(--brand-text)] truncate mt-0.5">
+                {workspaceUrl}
+              </span>
+            </span>
+            <ClipboardDocumentIcon className="w-4 h-4 text-black/30 group-hover:text-[var(--brand-primary)] shrink-0" />
+          </button>
         </div>
 
-        <Property label="Plan" value={tenant.plan} capitalize />
-        <Property label="Registered" value={formatDate(tenant.createdAt)} />
-
-        {tenant.owner && (
-          <div className="space-y-2.5 rounded-[14px] bg-[var(--brand-space)] border border-[#e8eef5] p-3.5">
-            <p className="text-[11px] font-semibold text-black/40 uppercase tracking-wide">Owner</p>
-            <div className="flex items-center gap-2 text-[14px] font-medium text-[var(--brand-text)]">
-              <UserIcon className="w-4 h-4 text-black/35" />
-              {tenant.owner.name}
+        {/* Meta */}
+        <div className="px-6 py-5 grid grid-cols-2 gap-3 border-b border-[#f1f5f9]">
+          <div className="rounded-[14px] border border-[#e8eef5] bg-[var(--brand-space)] p-3">
+            <div className="flex items-center gap-1.5 text-black/35">
+              <CreditCardIcon className="w-3.5 h-3.5" />
+              <p className="text-[10px] font-semibold uppercase tracking-wide">Plan</p>
             </div>
-            <div className="flex items-center gap-2 text-[13px] text-black/50">
-              <EnvelopeIcon className="w-4 h-4 text-black/35" />
+            <p className="mt-1.5 text-[14px] font-semibold text-[var(--brand-text)] capitalize">
+              {tenant.plan}
+            </p>
+          </div>
+          <div className="rounded-[14px] border border-[#e8eef5] bg-[var(--brand-space)] p-3">
+            <div className="flex items-center gap-1.5 text-black/35">
+              <CalendarDaysIcon className="w-3.5 h-3.5" />
+              <p className="text-[10px] font-semibold uppercase tracking-wide">Registered</p>
+            </div>
+            <p className="mt-1.5 text-[13px] font-semibold text-[var(--brand-text)] leading-snug">
+              {formatDate(tenant.createdAt)}
+            </p>
+          </div>
+        </div>
+
+        {/* Owner */}
+        {tenant.owner && (
+          <div className="px-6 py-5 border-b border-[#f1f5f9]">
+            <p className="text-[11px] font-semibold text-black/40 uppercase tracking-wide mb-3">
+              Owner account
+            </p>
+            <div className="rounded-[14px] border border-[#e8eef5] p-3.5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-[var(--brand-tertiary)] text-[var(--brand-primary)] flex items-center justify-center text-[12px] font-bold shrink-0">
+                  {(tenant.owner.name?.[0] ?? 'O').toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-[var(--brand-text)] truncate">
+                    {tenant.owner.name}
+                  </p>
+                  <p className="text-[12px] text-black/40 flex items-center gap-1 mt-0.5">
+                    <UserIcon className="w-3 h-3 shrink-0" />
+                    Shop admin
+                  </p>
+                </div>
+              </div>
               <a
                 href={`mailto:${tenant.owner.email}`}
-                className="hover:text-[var(--brand-primary)] truncate"
+                className="flex items-center gap-2 text-[13px] text-black/55 hover:text-[var(--brand-primary)] truncate rounded-[10px] bg-[var(--brand-space)] px-2.5 py-2"
               >
-                {tenant.owner.email}
+                <EnvelopeIcon className="w-4 h-4 shrink-0 text-black/35" />
+                <span className="truncate">{tenant.owner.email}</span>
               </a>
             </div>
           </div>
         )}
 
         {tenant.rejectionReason && (
-          <div className="rounded-[14px] bg-red-50 border border-red-100 px-3.5 py-3">
-            <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wide">
-              Rejection reason
-            </p>
-            <p className="text-[13px] text-red-800/80 mt-1 leading-relaxed">
-              {tenant.rejectionReason}
-            </p>
+          <div className="px-6 py-5 border-b border-[#f1f5f9]">
+            <div className="rounded-[14px] bg-red-50 border border-red-100 px-3.5 py-3">
+              <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wide">
+                Rejection reason
+              </p>
+              <p className="text-[13px] text-red-800/80 mt-1.5 leading-relaxed">
+                {tenant.rejectionReason}
+              </p>
+            </div>
           </div>
         )}
-      </div>
 
-      <div className="p-4 border-t border-[#eef2f7] flex flex-col gap-2">
-        {tenant.status === 'pending' && (
-          <>
+        {/* Actions */}
+        <div className="p-5 bg-[var(--brand-space)]/60 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-black/35 px-0.5 pb-1">
+            Subscription
+          </p>
+
+          {tenant.status === 'pending' && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onApprove(tenant._id)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] bg-[var(--brand-primary)] text-white text-[14px] font-semibold hover:bg-[#1048d4] shadow-[0_4px_14px_rgba(19,88,250,0.28)] transition-colors disabled:opacity-50"
+              >
+                <CheckIcon className="w-4 h-4" />
+                Approve shop
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onReject(tenant)}
+                className="w-full py-2.5 rounded-[12px] border border-[#e2e8f0] bg-white text-[14px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                Reject registration
+              </button>
+            </>
+          )}
+
+          {tenant.status === 'approved' && (
             <button
               type="button"
               disabled={busy}
-              onClick={() => onApprove(tenant._id)}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] bg-[var(--brand-primary)] text-white text-[14px] font-semibold hover:bg-[#1048d4] shadow-[0_4px_14px_rgba(19,88,250,0.28)] transition-colors disabled:opacity-50"
+              onClick={() => onDeactivate(tenant)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] border border-[#e2e8f0] bg-white text-[14px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
-              <CheckIcon className="w-4 h-4" />
-              Approve shop
+              <NoSymbolIcon className="w-4 h-4" />
+              Deactivate subscription
             </button>
+          )}
+
+          {tenant.status === 'deactivated' && (
             <button
               type="button"
               disabled={busy}
-              onClick={() => onReject(tenant)}
-              className="w-full py-2.5 rounded-[12px] border border-[#e2e8f0] text-[14px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+              onClick={() => onReactivate(tenant._id)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] bg-[var(--brand-primary)] text-white text-[14px] font-semibold hover:bg-[#1048d4] transition-colors disabled:opacity-50"
             >
-              Reject registration
+              <ArrowPathIcon className="w-4 h-4" />
+              Reactivate subscription
             </button>
-          </>
-        )}
+          )}
 
-        {tenant.status === 'approved' && (
           <button
             type="button"
             disabled={busy}
-            onClick={() => onDeactivate(tenant)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] border border-[#e2e8f0] text-[14px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50"
+            onClick={() => onDelete(tenant)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] border border-red-200 bg-white text-[14px] font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
           >
-            <NoSymbolIcon className="w-4 h-4" />
-            Deactivate subscription
+            <TrashIcon className="w-4 h-4" />
+            Delete tenant
           </button>
-        )}
-
-        {tenant.status === 'deactivated' && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => onReactivate(tenant._id)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] bg-[var(--brand-primary)] text-white text-[14px] font-semibold hover:bg-[#1048d4] transition-colors disabled:opacity-50"
-          >
-            <ArrowPathIcon className="w-4 h-4" />
-            Reactivate subscription
-          </button>
-        )}
-
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onDelete(tenant)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[12px] bg-red-600 text-white text-[14px] font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
-        >
-          <TrashIcon className="w-4 h-4" />
-          Delete tenant
-        </button>
-      </div>
-    </aside>
-  );
-}
-
-function Property({
-  label,
-  value,
-  capitalize: cap,
-}: {
-  label: string;
-  value: string;
-  capitalize?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold text-black/40 uppercase tracking-wide">{label}</p>
-      <p className={cn('text-[14px] font-medium text-[var(--brand-text)] mt-1', cap && 'capitalize')}>
-        {value}
-      </p>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
