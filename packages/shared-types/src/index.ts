@@ -64,6 +64,40 @@ function isLitreUnit(unit?: string) {
   return /^(l|ltr|litre|liter|litres|liters)$/i.test((unit ?? 'L').trim() || 'L');
 }
 
+/** Pack-size key → litres (e.g. 500ml → 0.5, 4L → 4). */
+export function packSizeToLitres(size: string): number {
+  const ml = size.match(/^(\d+(?:\.\d+)?)\s*ml$/i);
+  if (ml) return Number(ml[1]) / 1000;
+  const litres = size.match(/^(\d+(?:\.\d+)?)\s*L$/i);
+  if (litres) return Number(litres[1]);
+  return 0;
+}
+
+/** Sum of container counts across all pack sizes. */
+export function totalContainers(stockBySize?: Record<string, number> | null): number {
+  if (!stockBySize) return 0;
+  return PAINT_SIZES.reduce((sum, size) => sum + (stockBySize[size] ?? 0), 0);
+}
+
+/**
+ * Total paint volume in litres from container counts × pack size.
+ * Example: 18×500ml + 16×1L → 9 + 16 = 25 L.
+ */
+export function totalLitres(stockBySize?: Record<string, number> | null): number {
+  if (!stockBySize) return 0;
+  const raw = PAINT_SIZES.reduce(
+    (sum, size) => sum + (stockBySize[size] ?? 0) * packSizeToLitres(size),
+    0
+  );
+  return Math.round(raw * 1000) / 1000;
+}
+
+export function formatLitreAmount(litres: number): string {
+  if (!Number.isFinite(litres) || litres === 0) return '0';
+  if (Number.isInteger(litres)) return String(litres);
+  return litres.toFixed(litres < 1 ? 2 : 1).replace(/\.?0+$/, '');
+}
+
 /**
  * Display pack size using the product unit.
  * Storage keys stay as PAINT_SIZES (e.g. 1L); labels become "1 kg", "1 Pck", etc.

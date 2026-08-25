@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, type ChangeEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { inventoryApi } from '@/api';
 import type { Brand, Product, ProductType } from '@paint-saas/shared-types';
-import { PAINT_SIZES, PRODUCT_UNITS, emptySizeMap, formatPackSizeLabel } from '@paint-saas/shared-types';
+import { PAINT_SIZES, PRODUCT_UNITS, emptySizeMap, formatPackSizeLabel, totalContainers } from '@paint-saas/shared-types';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth.store';
@@ -63,7 +63,6 @@ import {
   ShoppingBag,
   Box,
   Trash2,
-  PackagePlus,
 } from 'lucide-react';
 
 const PAGE_SIZE = 10;
@@ -83,32 +82,35 @@ const emptyProductForm = () => ({
 });
 
 function stockOf(p: Product) {
-  return p.stock ?? p.stockQty ?? 0;
+  return totalContainers(p.stockBySize) || p.stock || p.stockQty || 0;
 }
 
-function stockStatus(p: Product): 'in' | 'low' | 'out' {
-  const s = stockOf(p);
-  if (s <= 0) return 'out';
-  if (s <= p.lowStockThreshold) return 'low';
+function qtyStatus(qty: number, threshold: number): 'in' | 'low' | 'out' {
+  if (qty <= 0) return 'out';
+  if (qty <= threshold) return 'low';
   return 'in';
 }
 
-function primaryPackSize(p: Product): string {
-  let best = '';
-  let bestQty = 0;
-  for (const size of PAINT_SIZES) {
-    const qty = p.stockBySize?.[size] ?? 0;
-    if (qty > bestQty) {
-      bestQty = qty;
-      best = size;
+type ProductSizeRow = {
+  product: Product;
+  size: string;
+  qty: number;
+};
+
+/** One table row per pack size that has stock (or a single empty row if none). */
+function expandProductsBySize(list: Product[]): ProductSizeRow[] {
+  const rows: ProductSizeRow[] = [];
+  for (const product of list) {
+    const sizesWithStock = PAINT_SIZES.filter((s) => (product.stockBySize?.[s] ?? 0) > 0);
+    if (sizesWithStock.length === 0) {
+      rows.push({ product, size: '', qty: 0 });
+      continue;
+    }
+    for (const size of sizesWithStock) {
+      rows.push({ product, size, qty: product.stockBySize?.[size] ?? 0 });
     }
   }
-  if (best) return formatPackSizeLabel(best, p.unit);
-  const withStock = PAINT_SIZES.filter((s) => (p.stockBySize?.[s] ?? 0) > 0);
-  if (withStock.length) {
-    return withStock.map((s) => formatPackSizeLabel(s, p.unit)).join(', ');
-  }
-  return '—';
+  return rows;
 }
 
 const TYPE_ICON_OPTIONS = [
@@ -689,11 +691,12 @@ export default function InventoryPage() {
   });
 
   const filteredProducts = products.filter((p) => productSearchMatch(p, productSearch || globalSearch));
+  const productSizeRows = expandProductsBySize(filteredProducts);
 
   const showBrandsView = !selectedBrand;
 
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PAGE_SIZE));
-  const pagedProducts = filteredProducts.slice(
+  const totalPages = Math.max(1, Math.ceil(productSizeRows.length / PAGE_SIZE));
+  const pagedProductRows = productSizeRows.slice(
     (productPage - 1) * PAGE_SIZE,
     productPage * PAGE_SIZE
   );
@@ -730,11 +733,12 @@ export default function InventoryPage() {
     );
   }
 
-  function renderProductRow(product: Product, showBrand = false) {
-    const status = stockStatus(product);
-    const stock = stockOf(product);
+  function renderProductRow(row: ProductSizeRow, showBrand = false) {
+    const { product, size, qty } = row;
+    const status = qtyStatus(qty, product.lowStockThreshold ?? 5);
+    const packLabel = size ? formatPackSizeLabel(size, product.unit) : '—';
     return (
-      <TableRow key={product._id} className="border-[#f1f5f9]">
+      <TableRow key={`${product._id}-${size || 'none'}`} className="border-[#f1f5f9]">
         <TableCell>
           <div className="flex items-center gap-3">
             {product.productImage ? (
@@ -759,7 +763,7 @@ export default function InventoryPage() {
           </div>
         </TableCell>
         <TableCell className="font-mono text-[13px] text-[#475569]">{product.productCode}</TableCell>
-        <TableCell className="text-[13px] text-[#475569]">{primaryPackSize(product)}</TableCell>
+        <TableCell className="text-[13px] font-medium text-[#0f172a]">{packLabel}</TableCell>
         <TableCell>
           <span
             className={cn(
@@ -769,7 +773,7 @@ export default function InventoryPage() {
               status === 'out' && 'text-[#dc2626]'
             )}
           >
-            {stock} {product.unit}
+            {qty} {qty === 1 ? 'container' : 'containers'}
           </span>
         </TableCell>
         <TableCell className="font-semibold text-[#0f172a] text-[14px]">{product.base?.trim() || '—'}</TableCell>
@@ -798,20 +802,6 @@ export default function InventoryPage() {
             >
               <Trash2 className="w-4 h-4" />
             </Button>
-            <ActionMenu>
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onSelect={() => openEditProduct(product)}
-              >
-                <Pencil className="w-4 h-4 mr-2" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onSelect={() => openStockDialog(product)}
-              >
-                <PackagePlus className="w-4 h-4 mr-2" /> Adjust stock
-              </DropdownMenuItem>
-            </ActionMenu>
           </div>
         </TableCell>
       </TableRow>
@@ -835,7 +825,7 @@ export default function InventoryPage() {
                     : 'Search by brand name'
               }
               value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setGlobalSearch(e.target.value)}
               className="w-full pl-9 pr-14 h-10 rounded-xl border-[#e2e8f0] bg-[#f8fafc] text-sm"
             />
             <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[#94a3b8] bg-white px-1.5 py-0.5 rounded border border-[#e2e8f0]">
@@ -916,7 +906,7 @@ export default function InventoryPage() {
                   <Input
                     placeholder="Search by brand name"
                     value={brandSearch}
-                    onChange={(e) => setBrandSearch(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setBrandSearch(e.target.value)}
                     className="pl-9 h-10 rounded-xl border-[#e2e8f0] bg-[#f8fafc] text-sm"
                   />
                 </div>
@@ -1013,7 +1003,7 @@ export default function InventoryPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 gap-1.5 px-2.5 text-[var(--brand-primary)] hover:text-[var(--brand-primary)] hover:bg-[var(--brand-tertiary)]"
-                                onClick={(e) => openEditBrand(brand, e)}
+                                onClick={(e: MouseEvent<HTMLElement>) => openEditBrand(brand, e)}
                               >
                                 <Pencil className="w-3.5 h-3.5" /> Edit
                               </Button>
@@ -1102,7 +1092,7 @@ export default function InventoryPage() {
                   <Input
                     placeholder="Search product types..."
                     value={typeSearch}
-                    onChange={(e) => setTypeSearch(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setTypeSearch(e.target.value)}
                     className="pl-9 h-10 w-full min-w-0 sm:w-[220px] rounded-xl border-[#e2e8f0] text-sm"
                   />
                 </div>
@@ -1168,7 +1158,7 @@ export default function InventoryPage() {
                           {type.name}
                         </p>
                         <p className="text-[13px] text-[#94a3b8] mt-1.5">
-                          Stock: {stats.totalStock.toLocaleString('en-IN')}
+                          Stock: {stats.totalStock.toLocaleString('en-IN')} containers
                         </p>
                         <p className="text-[13px] font-semibold text-[#16a34a] mt-1.5">
                           +{stats.productCount} this month
@@ -1216,7 +1206,7 @@ export default function InventoryPage() {
                     <Input
                       placeholder="Search by name, code or base"
                       value={productSearch}
-                      onChange={(e) => {
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => {
                         setProductSearch(e.target.value);
                         setProductPage(1);
                       }}
@@ -1252,24 +1242,27 @@ export default function InventoryPage() {
                       <Loader2 className="h-7 w-7 animate-spin mx-auto text-[#94a3b8]" />
                     </TableCell>
                   </TableRow>
-                ) : pagedProducts.length === 0 ? (
+                ) : pagedProductRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="py-16 text-center text-[#64748b]">
                       No products found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pagedProducts.map((product) => renderProductRow(product))
+                  pagedProductRows.map((row) => renderProductRow(row))
                 )}
               </TableBody>
             </Table>
 
-            {filteredProducts.length > 0 && (
+            {productSizeRows.length > 0 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-6 py-4 border-t border-[#f1f5f9] bg-[#fafafa]">
                 <p className="text-[13px] text-[#64748b]">
                   Showing {(productPage - 1) * PAGE_SIZE + 1} to{' '}
-                  {Math.min(productPage * PAGE_SIZE, filteredProducts.length)} of{' '}
-                  {filteredProducts.length} products
+                  {Math.min(productPage * PAGE_SIZE, productSizeRows.length)} of{' '}
+                  {productSizeRows.length} size rows
+                  {filteredProducts.length !== productSizeRows.length
+                    ? ` (${filteredProducts.length} products)`
+                    : ''}
                 </p>
                 <PaginationBar
                   page={productPage}
@@ -1286,7 +1279,7 @@ export default function InventoryPage() {
       {/* Dialogs */}
       <Dialog
         open={brandDialog}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setBrandDialog(open);
           if (!open) {
             setEditingBrandId(null);
@@ -1321,10 +1314,10 @@ export default function InventoryPage() {
               <Label className="text-[13px] font-semibold text-[#334155]">Brand name</Label>
               <Input
                 value={brandName}
-                onChange={(e) => setBrandName(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setBrandName(e.target.value)}
                 placeholder="e.g. Asian Paints, Berger, Nerolac"
                 className="h-11 rounded-xl border-[#e2e8f0] bg-[#fafafa] text-[#0f172a] placeholder:text-[#94a3b8] focus-visible:bg-white focus-visible:border-[#2563eb] focus-visible:ring-[#2563eb]/20"
-                onKeyDown={(e) => e.key === 'Enter' && saveBrand()}
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && saveBrand()}
               />
             </div>
             <div className="space-y-2">
@@ -1333,7 +1326,7 @@ export default function InventoryPage() {
               </Label>
               <Input
                 value={brandImage}
-                onChange={(e) => setBrandImage(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setBrandImage(e.target.value)}
                 placeholder="https://example.com/logo.png"
                 className="h-11 rounded-xl border-[#e2e8f0] bg-[#fafafa] text-[#0f172a] placeholder:text-[#94a3b8] focus-visible:bg-white focus-visible:border-[#2563eb] focus-visible:ring-[#2563eb]/20"
               />
@@ -1343,7 +1336,7 @@ export default function InventoryPage() {
                 <input
                   type="checkbox"
                   checked={brandIsActive}
-                  onChange={(e) => setBrandIsActive(e.target.checked)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setBrandIsActive(e.target.checked)}
                   className="rounded border-[#e2e8f0]"
                 />
                 <span className="text-[13px] font-medium text-[#334155]">Active brand</span>
@@ -1387,7 +1380,7 @@ export default function InventoryPage() {
 
       <Dialog
         open={typeDialog}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setTypeDialog(open);
           if (!open) {
             setEditingTypeId(null);
@@ -1447,10 +1440,10 @@ export default function InventoryPage() {
               <Input
                 type="text"
                 value={typeName}
-                onChange={(e) => setTypeName(e.target.value)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setTypeName(e.target.value)}
                 placeholder="e.g. Emulsion, Distemper, Primer"
                 className="h-11 rounded-xl border-[#e2e8f0] bg-[#fafafa] text-[#0f172a] placeholder:text-[#94a3b8] focus-visible:bg-white focus-visible:border-[#2563eb] focus-visible:ring-[#2563eb]/20"
-                onKeyDown={(e) => e.key === 'Enter' && saveType()}
+                onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && saveType()}
               />
             </div>
 
@@ -1547,7 +1540,7 @@ export default function InventoryPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+      <Dialog open={!!confirmDelete} onOpenChange={(open: boolean) => !open && setConfirmDelete(null)}>
         <DialogContent className="sm:max-w-[400px] rounded-[20px] bg-white border-[#e2e8f0]">
           <DialogHeader>
             <DialogTitle>Confirm delete</DialogTitle>
@@ -1571,7 +1564,7 @@ export default function InventoryPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!stockProduct} onOpenChange={(open) => !open && setStockProduct(null)}>
+      <Dialog open={!!stockProduct} onOpenChange={(open: boolean) => !open && setStockProduct(null)}>
         <DialogContent className="sm:max-w-[400px] rounded-[20px] bg-white border-[#e2e8f0]">
           <DialogHeader>
             <DialogTitle>Adjust stock</DialogTitle>
@@ -1597,7 +1590,7 @@ export default function InventoryPage() {
                 <Input
                   type="number"
                   value={stockQty}
-                  onChange={(e) => setStockQty(+e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setStockQty(+e.target.value)}
                   className="rounded-xl"
                   placeholder="e.g. 10 or -5"
                 />
@@ -1627,17 +1620,17 @@ export default function InventoryPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Name</Label>
-                <Input value={productForm.name} onChange={(e) => setProductForm({ ...productForm, name: e.target.value })} className="rounded-xl" />
+                <Input value={productForm.name} onChange={(e: ChangeEvent<HTMLInputElement>) => setProductForm({ ...productForm, name: e.target.value })} className="rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Label>SKU / Product code</Label>
-                <Input value={productForm.productCode} onChange={(e) => setProductForm({ ...productForm, productCode: e.target.value })} className="rounded-xl" />
+                <Input value={productForm.productCode} onChange={(e: ChangeEvent<HTMLInputElement>) => setProductForm({ ...productForm, productCode: e.target.value })} className="rounded-xl" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Base (optional)</Label>
-                <Input value={productForm.base} onChange={(e) => setProductForm({ ...productForm, base: e.target.value })} className="rounded-xl" />
+                <Input value={productForm.base} onChange={(e: ChangeEvent<HTMLInputElement>) => setProductForm({ ...productForm, base: e.target.value })} className="rounded-xl" />
               </div>
               <div className="space-y-2">
                 <Label>Unit</Label>
@@ -1668,15 +1661,12 @@ export default function InventoryPage() {
             </div>
             <div className="space-y-2">
               <Label>Image URL</Label>
-              <Input value={productForm.productImage} onChange={(e) => setProductForm({ ...productForm, productImage: e.target.value })} className="rounded-xl" />
+              <Input value={productForm.productImage} onChange={(e: ChangeEvent<HTMLInputElement>) => setProductForm({ ...productForm, productImage: e.target.value })} className="rounded-xl" />
             </div>
             <div>
               <Label className="mb-2 block">
                 Stock by size
-                <span className="font-normal text-[#94a3b8]">
-                  {' '}
-                  · shown as {productForm.unit || 'L'}
-                </span>
+                <span className="font-normal text-[#94a3b8]"> · containers per pack</span>
               </Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {PAINT_SIZES.map((size) => (
@@ -1688,7 +1678,7 @@ export default function InventoryPage() {
                       type="number"
                       min={0}
                       value={productForm.stockBySize[size]}
-                      onChange={(e) =>
+                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
                         setProductForm({
                           ...productForm,
                           stockBySize: { ...productForm.stockBySize, [size]: +e.target.value },
@@ -1699,6 +1689,12 @@ export default function InventoryPage() {
                   </div>
                 ))}
               </div>
+              <div className="mt-3 rounded-xl bg-[#f8fafc] border border-[#eef2f7] px-3.5 py-2.5 text-[13px]">
+                <span className="font-semibold text-[#0f172a]">
+                  {totalContainers(productForm.stockBySize)}{' '}
+                  {totalContainers(productForm.stockBySize) === 1 ? 'container' : 'containers'}
+                </span>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Low stock threshold</Label>
@@ -1706,7 +1702,7 @@ export default function InventoryPage() {
                 type="number"
                 min={0}
                 value={productForm.lowStockThreshold}
-                onChange={(e) => setProductForm({ ...productForm, lowStockThreshold: +e.target.value })}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setProductForm({ ...productForm, lowStockThreshold: +e.target.value })}
                 className="rounded-xl"
               />
             </div>

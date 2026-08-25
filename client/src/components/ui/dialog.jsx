@@ -31,7 +31,7 @@ function DialogClose({
 }
 
 const DialogOverlay = React.forwardRef(({
-  className,
+  className = "",
   ...props
 }, ref) => {
   return (
@@ -48,7 +48,7 @@ const DialogOverlay = React.forwardRef(({
 DialogOverlay.displayName = "DialogOverlay";
 
 function DialogContent({
-  className,
+  className = "",
   children,
   showCloseButton = true,
   ...props
@@ -78,7 +78,7 @@ function DialogContent({
 }
 
 function DialogHeader({
-  className,
+  className = "",
   ...props
 }) {
   return (
@@ -90,7 +90,7 @@ function DialogHeader({
 }
 
 function DialogFooter({
-  className,
+  className = "",
   ...props
 }) {
   return (
@@ -102,7 +102,7 @@ function DialogFooter({
 }
 
 function DialogTitle({
-  className,
+  className = "",
   ...props
 }) {
   return (
@@ -114,7 +114,7 @@ function DialogTitle({
 }
 
 function DialogDescription({
-  className,
+  className = "",
   ...props
 }) {
   return (
