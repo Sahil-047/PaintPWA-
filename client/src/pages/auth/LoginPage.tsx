@@ -14,7 +14,7 @@ import { ROUTES } from '@/config/config';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const setSession = useAuthStore((s) => s.setSession);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
 
@@ -25,11 +25,11 @@ export default function LoginPage() {
       const res = await authApi.login(formData);
       const data = res.data.data!;
       if (data.isSuperAdmin) {
-        setAuth(data.token, data.user, null, true);
+        setSession(data.user, null, true);
         navigate(ROUTES.ADMIN);
         return;
       }
-      setAuth(data.token, data.user, data.tenant ?? null, false);
+      setSession(data.user, data.tenant ?? null, false);
       if (data.tenant?.status === 'pending') {
         navigate(ROUTES.PENDING_APPROVAL);
         return;

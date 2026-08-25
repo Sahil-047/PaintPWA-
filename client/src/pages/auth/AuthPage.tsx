@@ -68,7 +68,7 @@ function PaintAccent({ className }: { className?: string }) {
 export default function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const setAuth = useAuthStore((s) => s.setAuth);
+  const setSession = useAuthStore((s) => s.setSession);
   const isSignup = location.pathname === ROUTES.SIGNUP;
 
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -101,12 +101,12 @@ export default function AuthPage() {
       const res = await authApi.login(loginData);
       const data = res.data.data!;
       if (data.isSuperAdmin) {
-        setAuth(data.token, data.user, null, true);
+        setSession(data.user, null, true);
         toast.success('Welcome, Super Admin');
         navigate(ROUTES.ADMIN);
         return;
       }
-      setAuth(data.token, data.user, data.tenant ?? null, false);
+      setSession(data.user, data.tenant ?? null, false);
       if (data.tenant?.status === 'pending') {
         toast.message('Your shop is awaiting approval');
         navigate(ROUTES.PENDING_APPROVAL);

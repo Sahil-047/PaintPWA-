@@ -3,7 +3,8 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const envSchema = z.object({
+const envSchema = z
+  .object({
   PORT: z.coerce.number().default(5000),
   MONGODB_URI: z.string().min(1),
   JWT_SECRET: z.string().min(16),
@@ -26,7 +27,12 @@ const envSchema = z.object({
   // Sync PDF render (pdf-service HTTP)
   PDF_SERVICE_URL: z
     .preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().url().optional()),
-});
+  PDF_SERVICE_SECRET: z.string().min(32).optional(),
+})
+  .refine(
+    (data) => !data.PDF_SERVICE_URL || !!data.PDF_SERVICE_SECRET,
+    { message: 'PDF_SERVICE_SECRET is required when PDF_SERVICE_URL is set', path: ['PDF_SERVICE_SECRET'] }
+  );
 
 const parsed = envSchema.safeParse(process.env);
 

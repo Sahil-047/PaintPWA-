@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import BrandLogo from '@/components/BrandLogo';
 import { ROUTES } from '@/config/config';
 import { useAuthStore } from '@/store/auth.store';
+import { signOut } from '@/lib/signOut';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -40,7 +41,7 @@ const navItems = [
 export default function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -48,9 +49,10 @@ export default function AppShell() {
   }, [location.pathname]);
 
   function handleLogout() {
-    logout();
-    toast.success('Logged out successfully');
-    navigate(ROUTES.HOME);
+    void signOut().then(() => {
+      toast.success('Logged out successfully');
+      navigate(ROUTES.HOME);
+    });
   }
 
   const sidebarNav = (

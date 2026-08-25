@@ -3,6 +3,8 @@ import type { PdfBillData, PdfCashMemoData } from '../types/pdf.types.js';
 
 export type BillPdfFormat = 'standard' | 'dl';
 
+const PDF_KEY_HEADER = 'X-PDF-Service-Key';
+
 function pdfServiceBaseUrl(): string {
   const url = (env.PDF_SERVICE_URL ?? '').replace(/\/$/, '');
   if (!url) {
@@ -13,10 +15,25 @@ function pdfServiceBaseUrl(): string {
   return url;
 }
 
+function pdfServiceHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/pdf',
+  };
+
+  const secret = env.PDF_SERVICE_SECRET?.trim();
+  if (!secret) {
+    throw new Error('PDF_SERVICE_SECRET is not set — required to call pdf-service securely');
+  }
+  headers[PDF_KEY_HEADER] = secret;
+
+  return headers;
+}
+
 async function postPdf(path: string, body: unknown): Promise<Buffer> {
   const res = await fetch(`${pdfServiceBaseUrl()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/pdf' },
+    headers: pdfServiceHeaders(),
     body: JSON.stringify(body),
   });
 

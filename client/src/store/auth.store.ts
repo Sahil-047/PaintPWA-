@@ -2,45 +2,56 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { TenantStatus } from '@paint-saas/shared-types';
 
+interface AuthUser {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface AuthTenant {
+  _id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  status?: TenantStatus;
+  phone?: string;
+  address?: string;
+  gstin?: string;
+}
+
 interface AuthState {
-  token: string | null;
-  user: { _id: string; name: string; email: string; role: string } | null;
-  tenant: {
-    _id: string;
-    name: string;
-    slug: string;
-    plan: string;
-    status?: TenantStatus;
-    phone?: string;
-    address?: string;
-    gstin?: string;
-  } | null;
+  user: AuthUser | null;
+  tenant: AuthTenant | null;
   isSuperAdmin: boolean;
-  setAuth: (
-    token: string,
-    user: AuthState['user'],
-    tenant: AuthState['tenant'],
-    isSuperAdmin?: boolean
-  ) => void;
-  logout: () => void;
+  sessionChecked: boolean;
+  setSession: (user: AuthUser, tenant: AuthTenant | null, isSuperAdmin?: boolean) => void;
+  markSessionChecked: () => void;
+  clearSession: () => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      token: null,
       user: null,
       tenant: null,
       isSuperAdmin: false,
-      setAuth: (token, user, tenant, isSuperAdmin = false) => {
-        localStorage.setItem('token', token);
-        set({ token, user, tenant, isSuperAdmin });
+      sessionChecked: false,
+      setSession: (user, tenant, isSuperAdmin = false) => {
+        set({ user, tenant, isSuperAdmin, sessionChecked: true });
       },
-      logout: () => {
-        localStorage.removeItem('token');
-        set({ token: null, user: null, tenant: null, isSuperAdmin: false });
+      markSessionChecked: () => set({ sessionChecked: true }),
+      clearSession: () => {
+        set({ user: null, tenant: null, isSuperAdmin: false, sessionChecked: true });
       },
     }),
-    { name: 'paint-auth' }
+    {
+      name: 'paint-auth',
+      partialize: (state) => ({
+        user: state.user,
+        tenant: state.tenant,
+        isSuperAdmin: state.isSuperAdmin,
+      }),
+    }
   )
 );

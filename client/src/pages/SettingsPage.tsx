@@ -55,7 +55,7 @@ function Field({
 }
 
 export default function SettingsPage() {
-  const { user, tenant, setAuth, token, isSuperAdmin } = useAuthStore();
+  const { user, tenant, setSession, isSuperAdmin } = useAuthStore();
   const isShopAdmin = user?.role === 'admin';
 
   const [tab, setTab] = useState<SettingsTab>('profile');
@@ -102,7 +102,7 @@ export default function SettingsPage() {
         name: profile.name.trim(),
         email: profile.email.trim(),
       });
-      if (token) setAuth(token, updated, tenant, isSuperAdmin);
+      if (user) setSession(updated, tenant, isSuperAdmin);
       toast.success('Profile saved');
     } catch (err) {
       toast.error(apiError(err, 'Failed to save profile'));
@@ -128,7 +128,7 @@ export default function SettingsPage() {
         phone: shop.phone.trim(),
         address: shop.address.trim(),
       });
-      if (token && user) setAuth(token, user, updated, isSuperAdmin);
+      if (user) setSession(user, updated, isSuperAdmin);
       toast.success('Shop details saved');
     } catch (err) {
       toast.error(apiError(err, 'Failed to save shop details'));

@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
+import { SessionProvider } from '@/components/SessionProvider';
 import { ROUTES } from '@/config/config';
 import { RequireAuth } from '@/layouts/AppLayout';
 import { RequireSuperAdmin } from '@/layouts/AdminLayout';
@@ -128,7 +129,7 @@ function AppSeo() {
 
 export default function App() {
   return (
-    <>
+    <SessionProvider>
       <AppSeo />
       <Toaster position="top-right" richColors />
       <Routes>
@@ -160,6 +161,6 @@ export default function App() {
 
         <Route path="*" element={<Navigate to={ROUTES.HOME} replace />} />
       </Routes>
-    </>
+    </SessionProvider>
   );
 }

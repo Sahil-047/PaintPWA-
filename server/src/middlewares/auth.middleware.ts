@@ -2,13 +2,17 @@ import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { env } from '../config/env.js';
+import { SESSION_COOKIE } from '../config/session.js';
 import { UserModel } from '../modules/auth/auth.model.js';
+import type { JwtPayload } from '../modules/auth/auth.service.js';
 import { AppError } from '../utils/appError.js';
 
-interface JwtPayload {
-  id: string;
-  tenantId?: string;
-  isSuperAdmin?: boolean;
+function readSessionToken(req: Request): string | null {
+  const fromCookie = req.cookies?.[SESSION_COOKIE];
+  if (typeof fromCookie === 'string' && fromCookie.length > 0) {
+    return fromCookie;
+  }
+  return null;
 }
 
 export async function authMiddleware(
@@ -16,19 +20,24 @@ export async function authMiddleware(
   _res: Response,
   next: NextFunction
 ): Promise<void> {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    next(new AppError('Not authorized, no token', 401));
+  const token = readSessionToken(req);
+  if (!token) {
+    next(new AppError('Not authorized, no session', 401));
     return;
   }
 
   try {
-    const token = header.split(' ')[1];
     const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
 
     const user = await UserModel.findById(decoded.id).select('-passwordHash');
     if (!user) {
       next(new AppError('User not found', 401));
+      return;
+    }
+
+    const tokenVersion = user.tokenVersion ?? 0;
+    if (decoded.tv !== tokenVersion) {
+      next(new AppError('Session expired. Please sign in again.', 401));
       return;
     }
 
@@ -62,6 +71,6 @@ export async function authMiddleware(
 
     next();
   } catch {
-    next(new AppError('Not authorized, token failed', 401));
+    next(new AppError('Not authorized, session invalid', 401));
   }
 }

@@ -39,6 +39,12 @@ export async function createSuperAdmin(input: {
   if (!env.BOOTSTRAP_SECRET) {
     throw new AppError('Super admin bootstrap is not configured on this server', 503);
   }
+
+  const existingSuperAdmin = await UserModel.exists({ role: 'superadmin' });
+  if (existingSuperAdmin) {
+    throw new AppError('Super admin bootstrap is disabled after initial setup', 403);
+  }
+
   if (input.setupSecret !== env.BOOTSTRAP_SECRET) {
     throw new AppError('Invalid setup secret', 403);
   }

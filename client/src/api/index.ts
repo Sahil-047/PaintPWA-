@@ -23,7 +23,6 @@ import type {
 } from '@paint-saas/shared-types';
 
 export interface AuthLoginResult {
-  token: string;
   user: { _id: string; name: string; email: string; role: string };
   tenant?: {
     _id: string;
@@ -86,6 +85,8 @@ export const authApi = {
 
   login: (data: { email: string; password: string }) =>
     axiosInstance.post<ApiResponse<AuthLoginResult>>('/auth/login', data),
+
+  logout: () => axiosInstance.post<ApiResponse<{ ok: true }>>('/auth/logout'),
 
   me: () => axiosInstance.get<ApiResponse<AuthLoginResult>>('/auth/me'),
 

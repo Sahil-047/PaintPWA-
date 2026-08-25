@@ -13,6 +13,7 @@ import {
 import { cn } from '@/lib/utils';
 import { ROUTES } from '@/config/config';
 import { useAuthStore } from '@/store/auth.store';
+import { signOut } from '@/lib/signOut';
 import BrandLogo from '@/components/BrandLogo';
 import type { TenantStatus } from '@paint-saas/shared-types';
 
@@ -51,11 +52,10 @@ export function AdminShell({
   headerActions,
 }: AdminShellProps) {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
 
   function handleLogout() {
-    logout();
-    navigate(ROUTES.HOME);
+    void signOut().then(() => navigate(ROUTES.HOME));
   }
 
   const activeNav = NAV.find((n) => n.key === view)!;

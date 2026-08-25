@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { authApi } from '@/api';
-import { useAuthStore } from '@/store/auth.store';
 import { toast } from 'sonner';
 import bgImage from '@/assets/bg new image.png';
 import {
@@ -38,7 +37,6 @@ const perks = [
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((s) => s.setAuth);
   const [formData, setFormData] = useState({
     shopName: '',
     slug: '',

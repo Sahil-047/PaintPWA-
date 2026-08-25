@@ -1,10 +1,23 @@
 import type { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
+import { clearSessionCookie, setSessionCookie } from '../../config/session.js';
 import { AppError } from '../../utils/appError.js';
 import { sendSuccess } from '../../utils/response.helper.js';
 import * as authService from './auth.service.js';
 import { createSuperAdmin } from '../admin/admin.service.js';
-import { createSuperAdminSchema, loginSchema, registerSchema, updatePasswordSchema, updateProfileSchema, updateShopSchema } from './auth.validator.js';
+import {
+  createSuperAdminSchema,
+  loginSchema,
+  registerSchema,
+  updatePasswordSchema,
+  updateProfileSchema,
+  updateShopSchema,
+} from './auth.validator.js';
+
+function sendSession(res: Response, token: string, payload: Record<string, unknown>) {
+  setSessionCookie(res, token);
+  sendSuccess(res, payload);
+}
 
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
@@ -34,7 +47,20 @@ export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     const input = loginSchema.parse(req.body);
     const result = await authService.loginUser(input);
-    sendSuccess(res, result);
+    const { token, ...session } = result;
+    sendSession(res, token, session);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function logout(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (req.user?._id) {
+      await authService.logoutUser(req.user._id as Types.ObjectId);
+    }
+    clearSessionCookie(res);
+    sendSuccess(res, { ok: true });
   } catch (err) {
     next(err);
   }
@@ -66,7 +92,8 @@ export async function updatePassword(req: Request, res: Response, next: NextFunc
     if (!req.user?._id) throw new AppError('Unauthorized', 401);
     const input = updatePasswordSchema.parse(req.body);
     const result = await authService.updatePassword(req.user._id as Types.ObjectId, input);
-    sendSuccess(res, result);
+    setSessionCookie(res, result.token);
+    sendSuccess(res, { ok: true });
   } catch (err) {
     next(err);
   }

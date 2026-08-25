@@ -4,22 +4,24 @@ import { Clock, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ROUTES } from '@/config/config';
 import { useAuthStore } from '@/store/auth.store';
+import { signOut } from '@/lib/signOut';
 import { toast } from 'sonner';
 
 export default function PendingApprovalPage() {
   const navigate = useNavigate();
-  const { token, tenant, isSuperAdmin, logout } = useAuthStore();
+  const { user, tenant, isSuperAdmin } = useAuthStore();
 
   useEffect(() => {
-    if (!token) navigate(ROUTES.HOME, { replace: true });
+    if (!user) navigate(ROUTES.HOME, { replace: true });
     else if (isSuperAdmin) navigate(ROUTES.ADMIN, { replace: true });
     else if (tenant?.status && tenant.status !== 'pending') navigate(ROUTES.DASHBOARD, { replace: true });
-  }, [token, isSuperAdmin, tenant?.status, navigate]);
+  }, [user, isSuperAdmin, tenant?.status, navigate]);
 
   function handleLogout() {
-    logout();
-    toast.success('Logged out');
-    navigate(ROUTES.HOME);
+    void signOut().then(() => {
+      toast.success('Logged out');
+      navigate(ROUTES.HOME);
+    });
   }
 
   return (

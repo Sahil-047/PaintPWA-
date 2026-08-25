@@ -10,22 +10,44 @@ interface JwtPayload {
   id: string;
   tenantId?: string;
   isSuperAdmin?: boolean;
+  tv: number;
 }
 
-function signTenantToken(userId: Types.ObjectId, tenantId: Types.ObjectId): string {
+function signTenantToken(userId: Types.ObjectId, tenantId: Types.ObjectId, tokenVersion: number): string {
   return jwt.sign(
-    { id: userId.toString(), tenantId: tenantId.toString() },
+    { id: userId.toString(), tenantId: tenantId.toString(), tv: tokenVersion },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRE as jwt.SignOptions['expiresIn'] }
   );
 }
 
-function signSuperAdminToken(userId: Types.ObjectId): string {
+function signSuperAdminToken(userId: Types.ObjectId, tokenVersion: number): string {
   return jwt.sign(
-    { id: userId.toString(), isSuperAdmin: true },
+    { id: userId.toString(), isSuperAdmin: true, tv: tokenVersion },
     env.JWT_SECRET,
     { expiresIn: env.JWT_EXPIRE as jwt.SignOptions['expiresIn'] }
   );
+}
+
+function issueToken(user: { _id: Types.ObjectId; role: string; tenantId?: Types.ObjectId; tokenVersion?: number }): string {
+  const tv = user.tokenVersion ?? 0;
+  if (user.role === 'superadmin') {
+    return signSuperAdminToken(user._id, tv);
+  }
+  if (!user.tenantId) {
+    throw new AppError('Tenant context missing', 403);
+  }
+  return signTenantToken(user._id, user.tenantId, tv);
+}
+
+async function revokeSessions(userId: Types.ObjectId): Promise<number> {
+  const user = await UserModel.findByIdAndUpdate(
+    userId,
+    { $inc: { tokenVersion: 1 } },
+    { new: true }
+  );
+  if (!user) throw new AppError('User not found', 404);
+  return user.tokenVersion ?? 0;
 }
 
 function serializeTenant(tenant: {
@@ -92,7 +114,7 @@ export async function loginUser(input: LoginInput) {
   }
 
   if (user.role === 'superadmin') {
-    const token = signSuperAdminToken(user._id as Types.ObjectId);
+    const token = issueToken(user);
     return {
       token,
       user: { _id: user._id, name: user.name, email: user.email, role: user.role },
@@ -119,7 +141,7 @@ export async function loginUser(input: LoginInput) {
     );
   }
 
-  const token = signTenantToken(user._id as Types.ObjectId, tenant._id as Types.ObjectId);
+  const token = issueToken(user);
 
   return {
     token,
@@ -127,6 +149,10 @@ export async function loginUser(input: LoginInput) {
     tenant: serializeTenant(tenant),
     isSuperAdmin: false as const,
   };
+}
+
+export async function logoutUser(userId: Types.ObjectId) {
+  await revokeSessions(userId);
 }
 
 export async function getMe(userId: Types.ObjectId) {
@@ -177,8 +203,11 @@ export async function updatePassword(userId: Types.ObjectId, input: UpdatePasswo
   }
 
   user.passwordHash = await bcrypt.hash(input.newPassword, 10);
+  user.tokenVersion = (user.tokenVersion ?? 0) + 1;
   await user.save();
-  return { ok: true as const };
+
+  const token = issueToken(user);
+  return { ok: true as const, token };
 }
 
 export async function updateShop(
@@ -204,3 +233,5 @@ export async function updateShop(
 
   return serializeTenant(tenant);
 }
+
+export type { JwtPayload };
