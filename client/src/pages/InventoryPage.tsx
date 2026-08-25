@@ -333,7 +333,35 @@ export default function InventoryPage() {
   const [typeBrandId, setTypeBrandId] = useState('');
   const [typeIconKey, setTypeIconKey] = useState<TypeIconKey>('paintbrush');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingSize, setEditingSize] = useState<string | null>(null);
   const [productForm, setProductForm] = useState(emptyProductForm());
+
+  // "Add product" modal: create a new product or restock an existing one.
+  const [addMode, setAddMode] = useState<'new' | 'existing'>('new');
+  const [existingSearch, setExistingSearch] = useState('');
+  const [existingResults, setExistingResults] = useState<Product[]>([]);
+  const [existingLoading, setExistingLoading] = useState(false);
+  const [existingProduct, setExistingProduct] = useState<Product | null>(null);
+  const [existingAdd, setExistingAdd] = useState(emptySizeMap());
+
+  useEffect(() => {
+    if (!productDialog || editingProductId || addMode !== 'existing') return;
+    const q = existingSearch.trim();
+    // Don't re-search after a product has been picked (search box holds its name).
+    if (q.length < 2 || (existingProduct && existingProduct.name === q)) {
+      setExistingResults([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      setExistingLoading(true);
+      inventoryApi
+        .list({ search: q })
+        .then((items) => setExistingResults(items.slice(0, 25)))
+        .catch(() => setExistingResults([]))
+        .finally(() => setExistingLoading(false));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [productDialog, editingProductId, addMode, existingSearch, existingProduct]);
 
   const loadAllProducts = useCallback(async () => {
     try {
@@ -640,6 +668,12 @@ export default function InventoryPage() {
   function openCreateProduct() {
     if (!selectedBrand || !selectedType) return;
     setEditingProductId(null);
+    setEditingSize(null);
+    setAddMode('new');
+    setExistingSearch('');
+    setExistingResults([]);
+    setExistingProduct(null);
+    setExistingAdd(emptySizeMap());
     setProductForm({
       ...emptyProductForm(),
       brand: selectedBrand._id,
@@ -648,8 +682,31 @@ export default function InventoryPage() {
     setProductDialog(true);
   }
 
-  function openEditProduct(product: Product) {
+  async function saveExistingStock() {
+    if (!existingProduct) return toast.error('Search and select a product first');
+    const sizesToAdd = PAINT_SIZES.filter((s) => (existingAdd[s] ?? 0) > 0);
+    if (sizesToAdd.length === 0) {
+      return toast.error('Enter stock to add for at least one pack size');
+    }
+    setSaving(true);
+    try {
+      for (const size of sizesToAdd) {
+        await inventoryApi.updateStock(existingProduct._id, { size, qty: existingAdd[size] });
+      }
+      toast.success(`Stock added to ${existingProduct.name}`);
+      setProductDialog(false);
+      await refreshInventory();
+    } catch (err: unknown) {
+      toast.error(apiError(err, 'Stock update failed'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEditProduct(product: Product, size?: string) {
     setEditingProductId(product._id);
+    // Remember which pack-size row was clicked so the dialog only shows that size.
+    setEditingSize(size ?? null);
     setProductForm({
       name: product.name,
       brand: product.brand,
@@ -787,7 +844,7 @@ export default function InventoryPage() {
               variant="ghost"
               size="sm"
               className="h-8 w-8 p-0 text-[#64748b] hover:text-[#2563eb]"
-              onClick={() => openEditProduct(product)}
+              onClick={() => openEditProduct(product, size || undefined)}
               aria-label="Edit product"
             >
               <Pencil className="w-4 h-4" />
@@ -1616,6 +1673,144 @@ export default function InventoryPage() {
           <DialogHeader>
             <DialogTitle>{editingProductId ? 'Edit product' : 'Add product'}</DialogTitle>
           </DialogHeader>
+          {!editingProductId && (
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-[#f1f5f9] p-1">
+              <button
+                type="button"
+                onClick={() => setAddMode('new')}
+                className={cn(
+                  'h-9 rounded-lg text-[13px] font-semibold transition',
+                  addMode === 'new'
+                    ? 'bg-white text-[#0f172a] shadow-sm'
+                    : 'text-[#64748b] hover:text-[#334155]'
+                )}
+              >
+                New product
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('existing')}
+                className={cn(
+                  'h-9 rounded-lg text-[13px] font-semibold transition',
+                  addMode === 'existing'
+                    ? 'bg-white text-[#0f172a] shadow-sm'
+                    : 'text-[#64748b] hover:text-[#334155]'
+                )}
+              >
+                Existing product
+              </button>
+            </div>
+          )}
+          {!editingProductId && addMode === 'existing' ? (
+            <div className="grid gap-4 py-2">
+              <div className="space-y-2">
+                <Label>Search product</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#94a3b8]" />
+                  <Input
+                    value={existingSearch}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                      setExistingSearch(e.target.value);
+                      setExistingProduct(null);
+                    }}
+                    placeholder="Type a product name…"
+                    className="rounded-xl pl-9"
+                  />
+                </div>
+                {existingLoading && (
+                  <p className="text-xs text-[#94a3b8]">
+                    <Loader2 className="inline w-3 h-3 animate-spin mr-1" />
+                    Searching…
+                  </p>
+                )}
+                {!existingLoading && existingResults.length > 0 && (
+                  <div className="rounded-xl border border-[#e2e8f0] divide-y divide-[#f1f5f9] max-h-56 overflow-y-auto">
+                    {existingResults.map((p) => (
+                      <button
+                        key={p._id}
+                        type="button"
+                        onClick={() => {
+                          setExistingProduct(p);
+                          setExistingSearch(p.name);
+                          setExistingResults([]);
+                          setExistingAdd(emptySizeMap());
+                        }}
+                        className="w-full px-3.5 py-2.5 text-left hover:bg-[#f8fafc]"
+                      >
+                        <p className="text-[13px] font-semibold text-[#0f172a]">
+                          {p.name}
+                          {p.base?.trim() ? (
+                            <span className="ml-2 inline-flex items-center rounded-md bg-[#eef2ff] px-1.5 py-0.5 text-[10px] font-semibold text-[#4338ca]">
+                              {p.base.trim()}
+                            </span>
+                          ) : null}
+                        </p>
+                        <p className="text-[11px] text-[#64748b]">
+                          {p.productCode} · {brandNameById(brands, p.brand)} · {p.type}
+                          {p.base?.trim() ? ` · Base: ${p.base.trim()}` : ''}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!existingLoading &&
+                  !existingProduct &&
+                  existingSearch.trim().length >= 2 &&
+                  existingResults.length === 0 && (
+                    <p className="text-xs text-[#94a3b8]">No products found</p>
+                  )}
+              </div>
+
+              {existingProduct && (
+                <>
+                  <div className="rounded-xl bg-[#f8fafc] border border-[#eef2f7] px-3.5 py-2.5">
+                    <p className="text-[13px] font-semibold text-[#0f172a]">
+                      {existingProduct.name}
+                      {existingProduct.base?.trim() ? (
+                        <span className="ml-2 inline-flex items-center rounded-md bg-[#eef2ff] px-1.5 py-0.5 text-[10px] font-semibold text-[#4338ca]">
+                          {existingProduct.base.trim()}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="text-[11px] text-[#64748b]">
+                      {existingProduct.productCode} · current total{' '}
+                      {totalContainers(existingProduct.stockBySize)} containers
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">
+                      Add stock
+                      <span className="font-normal text-[#94a3b8]"> · containers per pack</span>
+                    </Label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {PAINT_SIZES.map((size) => (
+                        <div key={size} className="space-y-1">
+                          <Label className="text-xs text-[#64748b]">
+                            {formatPackSizeLabel(size, existingProduct.unit)}
+                          </Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            value={existingAdd[size]}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                              setExistingAdd({
+                                ...existingAdd,
+                                [size]: Math.max(0, +e.target.value),
+                              })
+                            }
+                            className="rounded-lg h-9"
+                          />
+                          <p className="text-[10px] text-[#94a3b8]">
+                            Now: {existingProduct.stockBySize?.[size] ?? 0}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
           <div className="grid gap-4 py-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1665,11 +1860,16 @@ export default function InventoryPage() {
             </div>
             <div>
               <Label className="mb-2 block">
-                Stock by size
+                {editingProductId && editingSize
+                  ? `Stock · ${formatPackSizeLabel(editingSize, productForm.unit)}`
+                  : 'Stock by size'}
                 <span className="font-normal text-[#94a3b8]"> · containers per pack</span>
               </Label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {PAINT_SIZES.map((size) => (
+                {(editingProductId && editingSize
+                  ? PAINT_SIZES.filter((s) => s === editingSize)
+                  : PAINT_SIZES
+                ).map((size) => (
                   <div key={size} className="space-y-1">
                     <Label className="text-xs text-[#64748b]">
                       {formatPackSizeLabel(size, productForm.unit)}
@@ -1690,10 +1890,22 @@ export default function InventoryPage() {
                 ))}
               </div>
               <div className="mt-3 rounded-xl bg-[#f8fafc] border border-[#eef2f7] px-3.5 py-2.5 text-[13px]">
-                <span className="font-semibold text-[#0f172a]">
-                  {totalContainers(productForm.stockBySize)}{' '}
-                  {totalContainers(productForm.stockBySize) === 1 ? 'container' : 'containers'}
-                </span>
+                {editingProductId && editingSize ? (
+                  <span className="font-semibold text-[#0f172a]">
+                    {productForm.stockBySize[editingSize as keyof typeof productForm.stockBySize] ?? 0}{' '}
+                    {(productForm.stockBySize[editingSize as keyof typeof productForm.stockBySize] ?? 0) === 1
+                      ? 'container'
+                      : 'containers'}{' '}
+                    <span className="font-normal text-[#64748b]">
+                      of {formatPackSizeLabel(editingSize, productForm.unit)} · other pack sizes stay unchanged
+                    </span>
+                  </span>
+                ) : (
+                  <span className="font-semibold text-[#0f172a]">
+                    {totalContainers(productForm.stockBySize)}{' '}
+                    {totalContainers(productForm.stockBySize) === 1 ? 'container' : 'containers'}
+                  </span>
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -1707,11 +1919,22 @@ export default function InventoryPage() {
               />
             </div>
           </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setProductDialog(false)}>Cancel</Button>
-            <Button onClick={saveProduct} className="bg-[#2563eb] hover:bg-[#1d4ed8]">
-              {editingProductId ? 'Update' : 'Add'}
-            </Button>
+            {!editingProductId && addMode === 'existing' ? (
+              <Button
+                onClick={saveExistingStock}
+                disabled={saving || !existingProduct}
+                className="bg-[#2563eb] hover:bg-[#1d4ed8]"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Add stock'}
+              </Button>
+            ) : (
+              <Button onClick={saveProduct} className="bg-[#2563eb] hover:bg-[#1d4ed8]">
+                {editingProductId ? 'Update' : 'Add'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

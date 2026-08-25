@@ -39,12 +39,12 @@ export async function createCashMemo(tenantId: Types.ObjectId, input: CreateCash
     paidAt: new Date(),
   });
 
-  await accountsService.addPaymentToAccount(
+  // Advance money becomes store credit and is immediately allocated to pending
+  // bills (oldest first, partial allowed); the leftover stays as store credit.
+  await accountsService.addAdvanceCredit(
     tenantId,
     customer._id as Types.ObjectId,
-    memo._id as Types.ObjectId,
-    input.amountPaid,
-    { asAdvance: true }
+    input.amountPaid
   );
 
   const tenant = await TenantModel.findById(tenantId).lean();

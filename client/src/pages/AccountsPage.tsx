@@ -8,6 +8,8 @@ import {
   Filter,
   ArrowUpDown,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Pencil,
   Package,
   HandCoins,
@@ -46,6 +48,7 @@ import { accountDetailPath } from '@/config/config';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+const PAGE_SIZE = 10;
 const emptyCustomerForm = { name: '', phone: '', address: '' };
 const btnPrimary =
   'bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-[0_4px_14px_rgba(37,99,235,0.28)] border-0';
@@ -151,6 +154,7 @@ export default function AccountsPage() {
   const [search, setSearch] = useState('');
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
   const [sortBy, setSortBy] = useState<SortKey>('newest');
+  const [page, setPage] = useState(1);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editCustomerId, setEditCustomerId] = useState<string | null>(null);
@@ -264,6 +268,14 @@ export default function AccountsPage() {
 
     return rows;
   }, [accounts, search, statusTab, sortBy]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusTab, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   function openEditDialog(account: AccountWithCustomer) {
     const customer = account.customerId;
@@ -525,7 +537,7 @@ export default function AccountsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filtered.map((account) => {
+                    paged.map((account) => {
                       const customer = account.customerId;
                       const active = isActiveAccount(account);
                       const due = account.dueBalance ?? 0;
@@ -600,6 +612,57 @@ export default function AccountsPage() {
               </Table>
             </div>
           </div>
+
+          {!loading && filtered.length > 0 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-[#f1f5f9] bg-[#fafafa]">
+              <p className="text-[13px] text-[#64748b]">
+                Showing {(currentPage - 1) * PAGE_SIZE + 1} to{' '}
+                {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length}{' '}
+                customers
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-lg"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPages <= 5) pageNum = i + 1;
+                  else if (currentPage <= 3) pageNum = i + 1;
+                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = currentPage - 2 + i;
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? 'default' : 'outline'}
+                      size="sm"
+                      className={cn(
+                        'h-8 w-8 p-0 rounded-lg text-xs',
+                        currentPage === pageNum && 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+                      )}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-lg"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
         </section>
       </div>
 

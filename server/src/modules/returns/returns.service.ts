@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { AppError } from '../../utils/appError.js';
 import { syncAccountLedger } from '../accounts/account-ledger.js';
 import { AccountModel } from '../accounts/accounts.model.js';
+import * as accountsService from '../accounts/accounts.service.js';
 import { BillModel } from '../billing/billing.model.js';
 import * as inventoryService from '../inventory/inventory.service.js';
 import { ReturnItemModel } from './returns.model.js';
@@ -59,6 +60,12 @@ export async function createReturn(tenantId: Types.ObjectId, input: CreateReturn
     creditIssued = Number(Math.max(0, account.creditBalance - creditBefore).toFixed(2));
     await account.save();
   }
+
+  // Credit issued by this return may fully cover other pending bills — settle them.
+  await accountsService.autoSettlePendingBillsWithCredit(
+    tenantId,
+    bill.customerId as Types.ObjectId
+  );
 
   await inventoryService.updateProductStock(
     tenantId,

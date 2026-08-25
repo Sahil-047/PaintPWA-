@@ -119,6 +119,90 @@ function isStoreCreditMode(mode?: string | null): boolean {
 }
 
 /**
+ * Auto-debit store credit against the customer's pending bills (oldest first).
+ * Credit is applied even when it only partially covers a bill — shops here take
+ * small installments, so every rupee of credit must chip away at dues. The
+ * applied amount lands on bill.creditApplied so “payment received” reflects it.
+ * Returns the total credit debited.
+ */
+export async function autoSettlePendingBillsWithCredit(
+  tenantId: Types.ObjectId,
+  customerId: Types.ObjectId
+): Promise<number> {
+  const account = await AccountModel.findOne({ tenantId, customerId });
+  if (!account || account.creditBalance <= 0.001) return 0;
+
+  const pendingBills = await BillModel.find({
+    tenantId,
+    customerId,
+    status: { $in: ['due', 'partial'] },
+  }).sort({ createdAt: 1 });
+
+  let totalApplied = 0;
+  for (const bill of pendingBills) {
+    if (account.creditBalance <= 0.001) break;
+    const received = Number(((bill.amountPaid ?? 0) + (bill.creditApplied ?? 0)).toFixed(2));
+    const remaining = Number(Math.max(0, bill.grandTotal - received).toFixed(2));
+    if (remaining <= 0.001) {
+      bill.status = 'paid';
+      await bill.save();
+      continue;
+    }
+
+    const applied = Math.min(account.creditBalance, remaining);
+    bill.creditApplied = Number(((bill.creditApplied ?? 0) + applied).toFixed(2));
+    bill.status = received + applied >= bill.grandTotal - 0.001 ? 'paid' : 'partial';
+    await bill.save();
+
+    account.creditBalance = Number((account.creditBalance - applied).toFixed(2));
+    const due = Number((account.totalBilled - account.totalPaid).toFixed(2));
+    if (due > 0) {
+      account.totalPaid = Number((account.totalPaid + Math.min(applied, due)).toFixed(2));
+    }
+    totalApplied = Number((totalApplied + applied).toFixed(2));
+  }
+
+  if (totalApplied > 0) {
+    syncAccountLedger(account, { applyCredit: false });
+    await account.save();
+  }
+  return totalApplied;
+}
+
+/**
+ * Record an advance/installment (cash memo). The whole amount first becomes
+ * store credit, then is immediately allocated to pending bills oldest-first —
+ * partially covering the newest one if needed. Whatever remains after all
+ * bills are settled stays as store credit for future purchases.
+ */
+export async function addAdvanceCredit(
+  tenantId: Types.ObjectId,
+  customerId: Types.ObjectId,
+  amount: number
+): Promise<{ settled: number; creditLeft: number }> {
+  let account = await AccountModel.findOne({ tenantId, customerId });
+  if (!account) {
+    account = await AccountModel.create({
+      tenantId,
+      customerId,
+      totalBilled: 0,
+      totalPaid: 0,
+      dueBalance: 0,
+      creditBalance: 0,
+      lastActivityAt: new Date(),
+    });
+  }
+
+  account.creditBalance = Number((account.creditBalance + amount).toFixed(2));
+  account.lastActivityAt = new Date();
+  await account.save();
+
+  const settled = await autoSettlePendingBillsWithCredit(tenantId, customerId);
+  const fresh = await AccountModel.findOne({ tenantId, customerId });
+  return { settled, creditLeft: fresh?.creditBalance ?? 0 };
+}
+
+/**
  * Heal bills that used store credit at checkout but never got creditApplied
  * (older bug: applyCredit no-oped when advances already covered totalPaid).
  */
@@ -298,21 +382,22 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
 
   // Heal store-credit invoices that stayed Due (credit never recorded on the bill).
   await repairStoreCreditBills(tenantId, customer._id as Types.ObjectId, bills, advanceTotal);
-  // Reload bills after possible status/credit fixes.
-  const billsFresh = await BillModel.find({ tenantId, customerId }).sort({ createdAt: -1 });
 
-  // Keep ledger aligned with invoice + payment truth (repairs older return sync quirks).
+  // Realign the ledger with invoice + payment truth BEFORE allocating credit,
+  // so advances recorded under older flows surface in creditBalance first.
+  const billsAfterRepair = await BillModel.find({ tenantId, customerId }).sort({ createdAt: -1 });
+  account = await AccountModel.findOne({ tenantId, customerId });
   if (account) {
     const billedFromInvoices = Number(
-      billsFresh.reduce((s, b) => s + (b.grandTotal ?? 0), 0).toFixed(2)
+      billsAfterRepair.reduce((s, b) => s + (b.grandTotal ?? 0), 0).toFixed(2)
     );
     // Cash on invoices + legacy bill-linked memos. Store credit is NOT added here —
     // it is tracked via creditBalance (advances − creditApplied).
     const cashFromBills = Number(
-      billsFresh.reduce((s, b) => s + (b.amountPaid ?? 0), 0).toFixed(2)
+      billsAfterRepair.reduce((s, b) => s + (b.amountPaid ?? 0), 0).toFixed(2)
     );
     const creditFromBills = Number(
-      billsFresh.reduce((s, b) => s + (b.creditApplied ?? 0), 0).toFixed(2)
+      billsAfterRepair.reduce((s, b) => s + (b.creditApplied ?? 0), 0).toFixed(2)
     );
     const paidFromLegacyMemos = Number(
       memos
@@ -337,6 +422,11 @@ export async function getCustomerDetail(tenantId: Types.ObjectId, customerId: st
     }
     await AccountModel.updateOne({ _id: account._id }, { $unset: { bills: 1, memos: 1 } });
   }
+
+  // Allocate any sitting store credit to pending bills (partial allowed) so
+  // installments always reflect on the invoices' “payment received”.
+  await autoSettlePendingBillsWithCredit(tenantId, customer._id as Types.ObjectId);
+  const billsFresh = await BillModel.find({ tenantId, customerId }).sort({ createdAt: -1 });
 
   const returns = await ReturnItemModel.find({ tenantId, customerId })
     .populate('billId', 'billNo')

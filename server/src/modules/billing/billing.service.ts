@@ -216,6 +216,15 @@ export async function createBill(tenantId: Types.ObjectId, input: CreateBillInpu
         amountPaid
       );
     }
+    // Auto-debit store credit against whatever is still pending (partial allowed).
+    const remaining = Number((grandTotal - amountPaid).toFixed(2));
+    if (remaining > 0) {
+      creditApplied = await accountsService.applyCustomerCredit(
+        tenantId,
+        customer._id as Types.ObjectId,
+        remaining
+      );
+    }
   }
 
   const received = Number((creditApplied + amountPaid).toFixed(2));
@@ -330,6 +339,12 @@ export async function recordBillPayment(
     bill.customerId as Types.ObjectId,
     bill._id as Types.ObjectId,
     input.amountPaid
+  );
+
+  // Any available store credit chips away at what is still pending.
+  await accountsService.autoSettlePendingBillsWithCredit(
+    tenantId,
+    bill.customerId as Types.ObjectId
   );
 
   await getBillPdf(tenantId, String(bill._id));

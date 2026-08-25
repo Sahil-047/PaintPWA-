@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
-import { FileText, Loader2, Plus, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Loader2, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,6 +31,7 @@ import type { CashMemoWithRefs, Customer } from '@paint-saas/shared-types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
+const PAGE_SIZE = 10;
 const btnPrimary =
   'bg-[#2563eb] hover:bg-[#1d4ed8] text-white shadow-[0_4px_14px_rgba(37,99,235,0.28)] border-0';
 const inputClass =
@@ -71,6 +72,7 @@ export default function CashMemosPage() {
   const [customerId, setCustomerId] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState('cash');
+  const [page, setPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +119,14 @@ export default function CashMemosPage() {
       );
     });
   }, [memos, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   function openCreate() {
     setCustomerId(customers[0]?._id ?? '');
@@ -241,7 +251,7 @@ export default function CashMemosPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((memo) => {
+                paged.map((memo) => {
                   const money = formatMoneyParts(memo.amountPaid ?? 0);
                   return (
                     <TableRow key={memo._id}>
@@ -281,6 +291,56 @@ export default function CashMemosPage() {
             </TableBody>
           </Table>
         </div>
+
+        {!loading && filtered.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 border-t border-[#f1f5f9] bg-[#fafafa]">
+            <p className="text-[13px] text-[#64748b]">
+              Showing {(currentPage - 1) * PAGE_SIZE + 1} to{' '}
+              {Math.min(currentPage * PAGE_SIZE, filtered.length)} of {filtered.length} memos
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) pageNum = i + 1;
+                else if (currentPage <= 3) pageNum = i + 1;
+                else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                else pageNum = currentPage - 2 + i;
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? 'default' : 'outline'}
+                    size="sm"
+                    className={cn(
+                      'h-8 w-8 p-0 rounded-lg text-xs',
+                      currentPage === pageNum && 'bg-[#2563eb] hover:bg-[#1d4ed8]'
+                    )}
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-lg"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

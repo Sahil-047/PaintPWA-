@@ -209,6 +209,27 @@ export async function createProduct(tenantId: Types.ObjectId, input: CreateProdu
   const brand = await BrandModel.findOne({ _id: input.brand, tenantId, isActive: true });
   if (!brand) throw new AppError('Brand not found', 404);
 
+  // One indexed lookup: same name + same base (case/whitespace-insensitive) = duplicate.
+  const name = input.name.trim();
+  const base = (input.base ?? '').trim();
+  const duplicate = await ProductModel.findOne({
+    tenantId,
+    isActive: true,
+    name,
+    base: base || { $in: [null, ''] },
+  })
+    .collation({ locale: 'en', strength: 2 })
+    .select('_id')
+    .lean();
+  if (duplicate) {
+    throw new AppError(
+      base
+        ? `Product already exists: “${name}” with base “${base}”. Use “Existing product” to add stock instead.`
+        : `Product already exists: “${name}”. Use “Existing product” to add stock instead.`,
+      409
+    );
+  }
+
   const stockBySize = mergeSizeMaps(undefined, input.stockBySize);
 
   const product = await ProductModel.create({
